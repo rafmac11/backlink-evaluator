@@ -64,7 +64,7 @@ function ScatterPlot({ data }) {
           background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px",
           fontSize: 11, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 10 }}>
           <div style={{ fontWeight: 700, marginBottom: 2 }}>{data[hovered].domain}</div>
-          <div style={{ color: "var(--muted)" }}>TF: {data[hovered].tf} ? CF: {data[hovered].cf}</div>
+          <div style={{ color: "var(--muted)" }}>TF: {data[hovered].tf} / CF: {data[hovered].cf}</div>
         </div>
       )}
     </div>
@@ -209,11 +209,11 @@ function EvaluatorTab() {
         </div>
         <button onClick={evaluate} disabled={loading || !sourceUrl || !targetUrl}
           style={{ width: "100%", padding: "14px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 700, cursor: loading || !sourceUrl || !targetUrl ? "not-allowed" : "pointer", letterSpacing: 1 }}>
-          {loading ? "o RESEARCHING & SCORING..." : "-> RUN EVALUATION"}
+          {loading ? "o RESEARCHING & SCORING..." : "→ RUN EVALUATION"}
         </button>
         {loading && <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Claude is researching both domains (~30s)...</p>}
       </div>
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>{error}</div>}
       {result && (
         <>
           <div style={{ background: "var(--surface2)", border: `1px solid ${recColor(result.final?.recommendation)}`, borderRadius: 16, padding: "28px 32px", animation: "fadeUp 0.4s ease both" }}>
@@ -253,7 +253,7 @@ function EvaluatorTab() {
           </div>
           <PillarCard title="Agentic Value & Traffic Utility" tag="PILLAR 04" score={result.agentic_utility?.score} findings={result.agentic_utility?.findings || {}} summary={result.agentic_utility?.summary} color="#a542f5" delay="0.4s" />
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, color: "var(--muted)", fontSize: 11 }}>
-            <span>SOURCE: {result.source_url}</span><span style={{ margin: "0 12px" }}>-></span><span>TARGET: {result.target_url}</span>
+            <span>SOURCE: {result.source_url}</span><span style={{ margin: "0 12px" }}>{"→"}</span><span>TARGET: {result.target_url}</span>
           </div>
         </>
       )}
@@ -323,13 +323,13 @@ function BacklinkExplorer() {
             onKeyDown={(e) => e.key === "Enter" && url && fetchBacklinks()} />
           <button onClick={fetchBacklinks} disabled={loading || !url}
             style={{ padding: "10px 28px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 700, cursor: loading || !url ? "not-allowed" : "pointer" }}>
-            {loading ? "o" : "-> FETCH"}
+            {loading ? "o" : "→ FETCH"}
           </button>
         </div>
         {loading && <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Fetching backlink profile from DataForSEO...</p>}
       </div>
 
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>{error}</div>}
 
       {result && s && (
         <>
@@ -370,9 +370,9 @@ function BacklinkExplorer() {
               <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 16 }}>LINK PROFILE (TF vs CF)</div>
               <ScatterPlot data={s.scatter} />
               <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10, color: "var(--muted)" }}>
-                <span style={{ color: "#c8f542" }}>? TF &gt; CF</span>
-                <span style={{ color: "#f54242" }}>? CF &gt; TF</span>
-                <span style={{ color: "#42f5c8" }}>? Balanced</span>
+                <span style={{ color: "#c8f542" }}>● TF > CF</span>
+                <span style={{ color: "#f54242" }}>● CF > TF</span>
+                <span style={{ color: "#42f5c8" }}>● Balanced</span>
               </div>
             </div>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "24px" }}>
@@ -408,7 +408,7 @@ function BacklinkExplorer() {
                       { key: "dofollow", label: "TYPE" }, { key: "first_seen", label: "FIRST SEEN" }
                     ].map(({ key, label }) => (
                       <th key={key} style={thStyle(key)} onClick={() => toggleSort(key)}>
-                        {label} {sortKey === key ? (sortDir === "desc" ? "?" : "?") : ""}
+                        {label} {sortKey === key ? (sortDir === "desc" ? "↓" : "↑") : ""}
                       </th>
                     ))}
                     <th style={{ ...thStyle(""), cursor: "default" }}>LINK</th>
@@ -434,7 +434,7 @@ function BacklinkExplorer() {
                       </td>
                       <td style={{ ...tdStyle, color: "var(--muted)", fontSize: 11 }}>{b.first_seen ? new Date(b.first_seen).toLocaleDateString() : "-"}</td>
                       <td style={tdStyle}>
-                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>> view</a>
+                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>{"↗ view"}</a>
                       </td>
                     </tr>
                   ))}
@@ -470,11 +470,11 @@ export default function Home() {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 800, lineHeight: 1.1, marginBottom: 12 }}>
             Link Value <span style={{ color: "var(--accent)" }}>Platform</span>
           </h1>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation ? Real PageRank data ? Topical analysis ? Link profile</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation · Real PageRank data · Topical analysis · Link profile</p>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-          <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>o Link Evaluator</button>
-          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>> Backlink Explorer</button>
+          <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>{"⟳ Link Evaluator"}</button>
+          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>{"↗ Backlink Explorer"}</button>
         </div>
         {tab === "evaluator" ? <EvaluatorTab /> : <BacklinkExplorer />}
       </div>
