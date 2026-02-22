@@ -217,12 +217,12 @@ function BacklinkExplorer() {
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
             {[
-              { label: "DOMAIN RANK", val: result.summary.rank, color: "#c8f542" },
-              { label: "TRUST FLOW", val: result.summary.trust_flow, color: "#42f5c8" },
-              { label: "CITATION FLOW", val: result.summary.citation_flow, color: "#a542f5" },
-              { label: "TOTAL BACKLINKS", val: result.summary.backlinks?.toLocaleString(), color: "var(--text)" },
-              { label: "REF DOMAINS", val: result.summary.referring_domains?.toLocaleString(), color: "var(--text)" },
-              { label: "REF IPs", val: result.summary.referring_ips?.toLocaleString(), color: "var(--text)" },
+              { label: "DOMAIN RANK", val: result.summary?.rank ?? 0, color: "#c8f542" },
+              { label: "TRUST FLOW", val: result.summary?.trust_flow ?? 0, color: "#42f5c8" },
+              { label: "CITATION FLOW", val: result.summary?.citation_flow ?? 0, color: "#a542f5" },
+              { label: "TOTAL BACKLINKS", val: result.summary?.backlinks?.toLocaleString(), color: "var(--text)" },
+              { label: "REF DOMAINS", val: result.summary?.referring_domains?.toLocaleString(), color: "var(--text)" },
+              { label: "REF IPs", val: result.summary?.referring_ips?.toLocaleString(), color: "var(--text)" },
             ].map(({ label, val, color }) => (
               <div key={label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px", animation: "fadeUp 0.4s ease both" }}>
                 <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>{label}</div>
