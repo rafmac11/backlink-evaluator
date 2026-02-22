@@ -55,9 +55,9 @@ function ScatterPlot({ data }) {
             onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)} />
         ))}
         {/* Axis labels */}
-        <text x={W / 2} y={H} textAnchor="middle" fill="var(--muted)" fontSize="10" letterSpacing="1">TRUST FLOW</text>
+        <text x={W / 2} y={H} textAnchor="middle" fill="var(--muted)" fontSize="10" letterSpacing="1">PAGE RANK SCORE</text>
         <text x={10} y={H / 2} textAnchor="middle" fill="var(--muted)" fontSize="10" letterSpacing="1"
-          transform={`rotate(-90, 10, ${H / 2})`}>CITATION FLOW</text>
+          transform={`rotate(-90, 10, ${H / 2})`}>LINK VOLUME</text>
       </svg>
       {hovered !== null && data[hovered] && (
         <div style={{ position: "absolute", top: toY(data[hovered].cf) - 40, left: toX(data[hovered].tf) + 10,
@@ -269,7 +269,7 @@ function BacklinkExplorer() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [sortKey, setSortKey] = useState("trust_flow");
+  const [sortKey, setSortKey] = useState("page_rank_decimal");
   const [sortDir, setSortDir] = useState("desc");
   const [filter, setFilter] = useState("");
   const [view, setView] = useState("table"); // table | profile
@@ -339,17 +339,17 @@ function BacklinkExplorer() {
             <div style={{ display: "flex", gap: 40, flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between" }}>
               {/* Donuts */}
               <div style={{ display: "flex", gap: 40 }}>
-                <DonutChart value={s.trust_flow ?? 0} label="TRUST FLOW" color="#c8f542" size={130} />
-                <DonutChart value={s.citation_flow ?? 0} label="CITATION FLOW" color="#42f5c8" size={130} />
+                <DonutChart value={s.page_rank ?? 0} max={10} label="PAGE RANK" color="#c8f542" size={130} />
+                <DonutChart value={s.citation_flow ?? 0} label="LINK VOLUME" color="#42f5c8" size={130} />
                 <DonutChart value={s.dofollow_pct ?? 0} label="DOFOLLOW %" color="#a542f5" size={130} />
               </div>
               {/* Quick stats */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {[
-                  { label: "TOTAL BACKLINKS", val: s.backlinks?.toLocaleString() },
-                  { label: "REF DOMAINS", val: s.referring_domains?.toLocaleString() },
+                  { label: "PAGE RANK", val: `${s.page_rank ?? "—"} / 10` },
+                  { label: "GLOBAL RANK", val: s.global_rank ? `#${s.global_rank.toLocaleString()}` : "—" },
                   { label: "REF IPs", val: s.referring_ips?.toLocaleString() },
-                  { label: "DOMAIN RANK", val: s.rank },
+                  { label: "PR SCORE", val: s.pr_score ? `${s.pr_score}/100` : "—" },
                 ].map(({ label, val }) => (
                   <div key={label} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px" }}>
                     <div style={{ fontSize: 9, color: "var(--muted)", letterSpacing: 2, marginBottom: 4 }}>{label}</div>
@@ -363,8 +363,8 @@ function BacklinkExplorer() {
           {/* Topical TF + Scatter + Anchors */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, animation: "fadeUp 0.4s ease 0.1s both" }}>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "24px" }}>
-              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 16 }}>TOPICAL TRUST FLOW</div>
-              <TopicalTrustFlow topics={s.topics} trustFlow={s.trust_flow} />
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 16 }}>TOPICAL ANALYSIS</div>
+              <TopicalTrustFlow topics={s.topics} trustFlow={s.pr_score} />
             </div>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "24px" }}>
               <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 16 }}>LINK PROFILE (TF vs CF)</div>
@@ -403,7 +403,7 @@ function BacklinkExplorer() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    {[{ key: "domain_from", label: "LINKING DOMAIN" }, { key: "trust_flow", label: "TRUST FLOW" },
+                    {[{ key: "domain_from", label: "LINKING DOMAIN" }, { key: "page_rank_decimal", label: "PAGE RANK" },
                       { key: "domain_from_rank", label: "DOMAIN RANK" }, { key: "anchor", label: "ANCHOR TEXT" },
                       { key: "dofollow", label: "TYPE" }, { key: "first_seen", label: "FIRST SEEN" }
                     ].map(({ key, label }) => (
@@ -418,7 +418,11 @@ function BacklinkExplorer() {
                   {sorted.map((b, i) => (
                     <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)" }}>
                       <td style={tdStyle}><span style={{ fontWeight: 600 }}>{b.domain_from}</span></td>
-                      <td style={tdStyle}><span style={{ color: tfColor(b.trust_flow), fontWeight: 700 }}>{b.trust_flow}</span></td>
+                      <td style={tdStyle}>
+                        {b.page_rank !== null && b.page_rank !== undefined
+                          ? <span style={{ color: tfColor((b.page_rank / 10) * 100), fontWeight: 700 }}>PR {b.page_rank}</span>
+                          : <span style={{ color: "var(--muted)" }}>—</span>}
+                      </td>
                       <td style={tdStyle}><span style={{ color: tfColor(b.domain_from_rank) }}>{b.domain_from_rank}</span></td>
                       <td style={{ ...tdStyle, maxWidth: 180 }}>
                         <span style={{ color: "var(--muted)", fontSize: 11, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.anchor || "(none)"}</span>
@@ -466,7 +470,7 @@ export default function Home() {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 800, lineHeight: 1.1, marginBottom: 12 }}>
             Link Value <span style={{ color: "var(--accent)" }}>Platform</span>
           </h1>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation · Trust Flow & Citation Flow · Topical analysis · Link profile</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation · Real PageRank data · Topical analysis · Link profile</p>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
           <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>⟳ Link Evaluator</button>
