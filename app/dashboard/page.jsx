@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-// ── Donut Chart ────────────────────────────────────────────────────────────
+// -- Donut Chart ------------------------------------------------------------
 function DonutChart({ value, max = 100, color, label, size = 120 }) {
   const r = 44;
   const circ = 2 * Math.PI * r;
@@ -26,7 +26,7 @@ function DonutChart({ value, max = 100, color, label, size = 120 }) {
   );
 }
 
-// ── Scatter Plot ───────────────────────────────────────────────────────────
+// -- Scatter Plot -----------------------------------------------------------
 function ScatterPlot({ data }) {
   const [hovered, setHovered] = useState(null);
   const W = 280, H = 220, PAD = 32;
@@ -64,14 +64,14 @@ function ScatterPlot({ data }) {
           background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px",
           fontSize: 11, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 10 }}>
           <div style={{ fontWeight: 700, marginBottom: 2 }}>{data[hovered].domain}</div>
-          <div style={{ color: "var(--muted)" }}>TF: {data[hovered].tf} · CF: {data[hovered].cf}</div>
+          <div style={{ color: "var(--muted)" }}>TF: {data[hovered].tf} ? CF: {data[hovered].cf}</div>
         </div>
       )}
     </div>
   );
 }
 
-// ── Topical Trust Flow ─────────────────────────────────────────────────────
+// -- Topical Trust Flow -----------------------------------------------------
 const TOPIC_COLORS = ["#c8f542", "#42f5c8", "#a542f5", "#f5a342", "#f54242"];
 function TopicalTrustFlow({ topics, trustFlow }) {
   if (!topics || topics.length === 0) return <div style={{ color: "var(--muted)", fontSize: 12 }}>Insufficient data for topical analysis.</div>;
@@ -98,7 +98,7 @@ function TopicalTrustFlow({ topics, trustFlow }) {
   );
 }
 
-// ── Anchor Text Chart ──────────────────────────────────────────────────────
+// -- Anchor Text Chart ------------------------------------------------------
 function AnchorChart({ anchors }) {
   if (!anchors || anchors.length === 0) return null;
   const max = Math.max(...anchors.map(a => a.count), 1);
@@ -120,7 +120,7 @@ function AnchorChart({ anchors }) {
   );
 }
 
-// ── Score Card ─────────────────────────────────────────────────────────────
+// -- Score Card -------------------------------------------------------------
 const ScoreBar = ({ score, color = "#c8f542" }) => {
   const pct = Math.round(score * 100);
   return (
@@ -163,14 +163,14 @@ const PillarCard = ({ title, tag, score, findings, summary, color, delay }) => (
       {Object.entries(findings).map(([key, val]) => (
         <div key={key} style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 8 }}>
           <span style={{ color: "var(--muted)", fontSize: 11, letterSpacing: 0.5 }}>{key.replace(/_/g, " ").toUpperCase()}</span>
-          <span style={{ fontSize: 12, lineHeight: 1.5 }}>{val || "—"}</span>
+          <span style={{ fontSize: 12, lineHeight: 1.5 }}>{val || "-"}</span>
         </div>
       ))}
     </div>
   </div>
 );
 
-// ── Evaluator Tab ──────────────────────────────────────────────────────────
+// -- Evaluator Tab ----------------------------------------------------------
 function EvaluatorTab() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
@@ -209,11 +209,11 @@ function EvaluatorTab() {
         </div>
         <button onClick={evaluate} disabled={loading || !sourceUrl || !targetUrl}
           style={{ width: "100%", padding: "14px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 700, cursor: loading || !sourceUrl || !targetUrl ? "not-allowed" : "pointer", letterSpacing: 1 }}>
-          {loading ? "⟳ RESEARCHING & SCORING..." : "→ RUN EVALUATION"}
+          {loading ? "o RESEARCHING & SCORING..." : "-> RUN EVALUATION"}
         </button>
         {loading && <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Claude is researching both domains (~30s)...</p>}
       </div>
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>✕ {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
       {result && (
         <>
           <div style={{ background: "var(--surface2)", border: `1px solid ${recColor(result.final?.recommendation)}`, borderRadius: 16, padding: "28px 32px", animation: "fadeUp 0.4s ease both" }}>
@@ -246,14 +246,14 @@ function EvaluatorTab() {
               {Object.entries(result.toxicity_risk?.findings || {}).map(([key, val]) => (
                 <div key={key} style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 8 }}>
                   <span style={{ color: "var(--muted)", fontSize: 11, letterSpacing: 0.5 }}>{key.replace(/_/g, " ").toUpperCase()}</span>
-                  <span style={{ fontSize: 12, lineHeight: 1.5 }}>{val || "—"}</span>
+                  <span style={{ fontSize: 12, lineHeight: 1.5 }}>{val || "-"}</span>
                 </div>
               ))}
             </div>
           </div>
           <PillarCard title="Agentic Value & Traffic Utility" tag="PILLAR 04" score={result.agentic_utility?.score} findings={result.agentic_utility?.findings || {}} summary={result.agentic_utility?.summary} color="#a542f5" delay="0.4s" />
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, color: "var(--muted)", fontSize: 11 }}>
-            <span>SOURCE: {result.source_url}</span><span style={{ margin: "0 12px" }}>→</span><span>TARGET: {result.target_url}</span>
+            <span>SOURCE: {result.source_url}</span><span style={{ margin: "0 12px" }}>-></span><span>TARGET: {result.target_url}</span>
           </div>
         </>
       )}
@@ -261,7 +261,7 @@ function EvaluatorTab() {
   );
 }
 
-// ── Backlink Explorer Tab ──────────────────────────────────────────────────
+// -- Backlink Explorer Tab --------------------------------------------------
 const tfColor = (score) => score >= 50 ? "#c8f542" : score >= 25 ? "#f5a342" : "#f54242";
 
 function BacklinkExplorer() {
@@ -323,19 +323,19 @@ function BacklinkExplorer() {
             onKeyDown={(e) => e.key === "Enter" && url && fetchBacklinks()} />
           <button onClick={fetchBacklinks} disabled={loading || !url}
             style={{ padding: "10px 28px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 700, cursor: loading || !url ? "not-allowed" : "pointer" }}>
-            {loading ? "⟳" : "→ FETCH"}
+            {loading ? "o" : "-> FETCH"}
           </button>
         </div>
         {loading && <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Fetching backlink profile from DataForSEO...</p>}
       </div>
 
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>✕ {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
 
       {result && s && (
         <>
-          {/* Flow Metrics — Majestic-style donut row */}
+          {/* Flow Metrics - Majestic-style donut row */}
           <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: "28px 32px", animation: "fadeUp 0.3s ease both" }}>
-            <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 24 }}>FLOW METRICS — {s.target}</div>
+            <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 24 }}>FLOW METRICS - {s.target}</div>
             <div style={{ display: "flex", gap: 40, flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between" }}>
               {/* Donuts */}
               <div style={{ display: "flex", gap: 40 }}>
@@ -346,14 +346,14 @@ function BacklinkExplorer() {
               {/* Quick stats */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {[
-                  { label: "PAGE RANK", val: `${s.page_rank ?? "—"} / 10` },
-                  { label: "GLOBAL RANK", val: s.global_rank ? `#${s.global_rank.toLocaleString()}` : "—" },
+                  { label: "PAGE RANK", val: `${s.page_rank ?? "-"} / 10` },
+                  { label: "GLOBAL RANK", val: s.global_rank ? `#${s.global_rank.toLocaleString()}` : "-" },
                   { label: "REF IPs", val: s.referring_ips?.toLocaleString() },
-                  { label: "PR SCORE", val: s.pr_score ? `${s.pr_score}/100` : "—" },
+                  { label: "PR SCORE", val: s.pr_score ? `${s.pr_score}/100` : "-" },
                 ].map(({ label, val }) => (
                   <div key={label} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px" }}>
                     <div style={{ fontSize: 9, color: "var(--muted)", letterSpacing: 2, marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800 }}>{val ?? "—"}</div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800 }}>{val ?? "-"}</div>
                   </div>
                 ))}
               </div>
@@ -370,9 +370,9 @@ function BacklinkExplorer() {
               <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 16 }}>LINK PROFILE (TF vs CF)</div>
               <ScatterPlot data={s.scatter} />
               <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10, color: "var(--muted)" }}>
-                <span style={{ color: "#c8f542" }}>● TF &gt; CF</span>
-                <span style={{ color: "#f54242" }}>● CF &gt; TF</span>
-                <span style={{ color: "#42f5c8" }}>● Balanced</span>
+                <span style={{ color: "#c8f542" }}>? TF &gt; CF</span>
+                <span style={{ color: "#f54242" }}>? CF &gt; TF</span>
+                <span style={{ color: "#42f5c8" }}>? Balanced</span>
               </div>
             </div>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "24px" }}>
@@ -408,7 +408,7 @@ function BacklinkExplorer() {
                       { key: "dofollow", label: "TYPE" }, { key: "first_seen", label: "FIRST SEEN" }
                     ].map(({ key, label }) => (
                       <th key={key} style={thStyle(key)} onClick={() => toggleSort(key)}>
-                        {label} {sortKey === key ? (sortDir === "desc" ? "↓" : "↑") : ""}
+                        {label} {sortKey === key ? (sortDir === "desc" ? "?" : "?") : ""}
                       </th>
                     ))}
                     <th style={{ ...thStyle(""), cursor: "default" }}>LINK</th>
@@ -421,7 +421,7 @@ function BacklinkExplorer() {
                       <td style={tdStyle}>
                         {b.page_rank !== null && b.page_rank !== undefined
                           ? <span style={{ color: tfColor((b.page_rank / 10) * 100), fontWeight: 700 }}>PR {b.page_rank}</span>
-                          : <span style={{ color: "var(--muted)" }}>—</span>}
+                          : <span style={{ color: "var(--muted)" }}>-</span>}
                       </td>
                       <td style={tdStyle}><span style={{ color: tfColor(b.domain_from_rank) }}>{b.domain_from_rank}</span></td>
                       <td style={{ ...tdStyle, maxWidth: 180 }}>
@@ -432,9 +432,9 @@ function BacklinkExplorer() {
                           {b.dofollow ? "DOFOLLOW" : "NOFOLLOW"}
                         </span>
                       </td>
-                      <td style={{ ...tdStyle, color: "var(--muted)", fontSize: 11 }}>{b.first_seen ? new Date(b.first_seen).toLocaleDateString() : "—"}</td>
+                      <td style={{ ...tdStyle, color: "var(--muted)", fontSize: 11 }}>{b.first_seen ? new Date(b.first_seen).toLocaleDateString() : "-"}</td>
                       <td style={tdStyle}>
-                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>↗ view</a>
+                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>> view</a>
                       </td>
                     </tr>
                   ))}
@@ -449,7 +449,7 @@ function BacklinkExplorer() {
   );
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────
+// -- Main App ---------------------------------------------------------------
 export default function Home() {
   const [tab, setTab] = useState("evaluator");
   const tabStyle = (t) => ({
@@ -470,11 +470,11 @@ export default function Home() {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 800, lineHeight: 1.1, marginBottom: 12 }}>
             Link Value <span style={{ color: "var(--accent)" }}>Platform</span>
           </h1>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation · Real PageRank data · Topical analysis · Link profile</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation ? Real PageRank data ? Topical analysis ? Link profile</p>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-          <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>⟳ Link Evaluator</button>
-          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>↗ Backlink Explorer</button>
+          <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>o Link Evaluator</button>
+          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>> Backlink Explorer</button>
         </div>
         {tab === "evaluator" ? <EvaluatorTab /> : <BacklinkExplorer />}
       </div>
