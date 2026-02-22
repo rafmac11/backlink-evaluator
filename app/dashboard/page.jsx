@@ -370,8 +370,8 @@ function BacklinkExplorer() {
               <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 16 }}>LINK PROFILE (TF vs CF)</div>
               <ScatterPlot data={s.scatter} />
               <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10, color: "var(--muted)" }}>
-                <span style={{ color: "#c8f542" }}>● TF > CF</span>
-                <span style={{ color: "#f54242" }}>● CF > TF</span>
+                <span style={{ color: "#c8f542" }}>{"● TF > CF"}</span>
+<span style={{ color: "#f54242" }}>{"● CF > TF"}</span>
                 <span style={{ color: "#42f5c8" }}>● Balanced</span>
               </div>
             </div>
