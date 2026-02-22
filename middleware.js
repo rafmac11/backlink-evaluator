@@ -3,9 +3,12 @@ import { NextResponse } from "next/server";
 export function middleware(req) {
   const { pathname } = req.nextUrl;
 
-  // Allow API routes through (they handle their own auth)
-  if (pathname.startsWith("/api/")) return NextResponse.next();
+  // Landing page and static assets are public
+  if (pathname === "/" || pathname.startsWith("/api/") || pathname.startsWith("/_next/") || pathname === "/favicon.ico") {
+    return NextResponse.next();
+  }
 
+  // Protect /dashboard and everything else
   const basicAuth = req.headers.get("authorization");
   const password = process.env.APP_PASSWORD || "changeme";
 
@@ -20,9 +23,7 @@ export function middleware(req) {
 
   return new NextResponse("Unauthorized", {
     status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Link Value Platform"',
-    },
+    headers: { "WWW-Authenticate": 'Basic realm="Link Value Platform"' },
   });
 }
 
