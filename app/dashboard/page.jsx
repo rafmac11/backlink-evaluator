@@ -1084,15 +1084,6 @@ function Projects() {
     setRunning(false);
   }
 
-  function rankDelta(kw, runIndex) {
-    const current = runs[runIndex]?.rankings?.[kw];
-    const prev = runs[runIndex + 1]?.rankings?.[kw];
-    if (!current || !prev) return null;
-    const delta = prev - current;
-    if (delta > 0) return { label: `↑${delta}`, color: "#00ff88" };
-    if (delta < 0) return { label: `↓${Math.abs(delta)}`, color: "#ff4444" };
-    return { label: "–", color: "var(--muted)" };
-  }
 
   // LIST VIEW
   if (view === "list") return (
@@ -1201,65 +1192,161 @@ function Projects() {
         </div>
       )}
 
-      {/* History table */}
-      {runs.length > 0 && (
-        <div style={card}>
-          <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>RANKING HISTORY</div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>KEYWORD</th>
-                  {runs.slice(0, 6).map((r, i) => (
-                    <th key={i} style={{ textAlign: "center", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", minWidth: 90 }}>
-                      {new Date(r.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(active.keywords || []).map(kw => (
-                  <tr key={kw} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "10px 12px", color: "var(--text)" }}>{kw}</td>
-                    {runs.slice(0, 6).map((r, i) => {
-                      const pos = r.rankings?.[kw];
-                      const delta = rankDelta(kw, i);
-                      const color = !pos ? "var(--muted)" : pos <= 3 ? "#00ff88" : pos <= 10 ? "var(--accent)" : pos <= 30 ? "#f0a500" : "#ff4444";
+      {/* History table + chart */}
+      {runs.length > 0 && (() => {
+        const displayRuns = runs.slice(0, 10).reverse(); // oldest left, newest right
+        const W = 500, H = 160, PAD = 20;
+
+        function Sparkline({ kw }) {
+          const vals = displayRuns.map(r => r.rankings?.[kw] ?? null);
+          const valid = vals.filter(v => v !== null);
+          if (valid.length < 2) return <span style={{ color: "var(--muted)", fontSize: 10 }}>–</span>;
+          const maxPos = Math.min(Math.max(...valid) + 5, 100);
+          const minPos = Math.max(Math.min(...valid) - 2, 1);
+          const points = vals.map((v, i) => {
+            if (v === null) return null;
+            const x = (i / (vals.length - 1)) * 80;
+            const y = 20 - ((maxPos - v) / (maxPos - minPos)) * 16;
+            return `${x},${y}`;
+          }).filter(Boolean);
+          return (
+            <svg width="84" height="24" style={{ verticalAlign: "middle" }}>
+              <polyline points={points.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinejoin="round" />
+              {points[points.length - 1] && <circle cx={points[points.length - 1].split(",")[0]} cy={points[points.length - 1].split(",")[1]} r="2.5" fill="var(--accent)" />}
+            </svg>
+          );
+        }
+
+        function BigChart({ kw }) {
+          const vals = displayRuns.map(r => ({ date: r.date, pos: r.rankings?.[kw] ?? null }));
+          const valid = vals.filter(v => v.pos !== null);
+          if (valid.length < 2) return <div style={{ color: "var(--muted)", fontSize: 12, padding: 20 }}>Not enough data yet — run at least 2 checks.</div>;
+          const maxPos = Math.min(Math.max(...valid.map(v => v.pos)) + 5, 100);
+          const minPos = Math.max(Math.min(...valid.map(v => v.pos)) - 3, 1);
+          const pts = vals.map((v, i) => {
+            if (v.pos === null) return null;
+            const x = PAD + (i / (vals.length - 1)) * (W - PAD * 2);
+            const y = PAD + ((v.pos - minPos) / (maxPos - minPos)) * (H - PAD * 2);
+            return { x, y, pos: v.pos, date: v.date };
+          }).filter(Boolean);
+          const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+          const areaD = `${pathD} L${pts[pts.length-1].x},${H} L${pts[0].x},${H} Z`;
+          return (
+            <svg width="100%" viewBox={`0 0 ${W} ${H + 20}`} style={{ overflow: "visible" }}>
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {[minPos, Math.round((minPos+maxPos)/2), maxPos].map((v, i) => {
+                const y = PAD + ((v - minPos) / (maxPos - minPos)) * (H - PAD * 2);
+                return <g key={i}>
+                  <line x1={PAD} y1={y} x2={W - PAD} y2={y} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" />
+                  <text x={PAD - 4} y={y + 4} textAnchor="end" fill="var(--muted)" fontSize="9">{`#${v}`}</text>
+                </g>;
+              })}
+              <path d={areaD} fill="url(#chartGrad)" />
+              <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
+              {pts.map((p, i) => (
+                <g key={i}>
+                  <circle cx={p.x} cy={p.y} r="4" fill="var(--accent)" />
+                  <text x={p.x} y={H + 16} textAnchor="middle" fill="var(--muted)" fontSize="9">
+                    {new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </text>
+                  <text x={p.x} y={p.y - 8} textAnchor="middle" fill="var(--accent)" fontSize="10" fontWeight="bold">{`#${p.pos}`}</text>
+                </g>
+              ))}
+            </svg>
+          );
+        }
+
+        return (
+          <>
+            {/* Chart for selected keyword */}
+            {active._chartKw && (
+              <div style={card}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3 }}>RANK TREND — {active._chartKw.toUpperCase()}</div>
+                  <button onClick={() => setActive(a => ({ ...a, _chartKw: null }))} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 18 }}>×</button>
+                </div>
+                <div style={{ padding: "0 8px" }}><BigChart kw={active._chartKw} /></div>
+              </div>
+            )}
+
+            <div style={card}>
+              <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 4 }}>RANKING HISTORY</div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 16 }}>Click any keyword to see its trend chart</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>KEYWORD</th>
+                      <th style={{ textAlign: "center", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>TREND</th>
+                      {runs.slice(0, 6).reverse().map((r, i) => (
+                        <th key={i} style={{ textAlign: "center", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", minWidth: 80 }}>
+                          {new Date(r.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(active.keywords || []).map(kw => {
+                      const isSelected = active._chartKw === kw;
                       return (
-                        <td key={i} style={{ textAlign: "center", padding: "10px 12px" }}>
-                          <span style={{ color, fontWeight: 700 }}>{pos ? `#${pos}` : "—"}</span>
-                          {delta && <span style={{ color: delta.color, fontSize: 10, marginLeft: 4 }}>{delta.label}</span>}
-                        </td>
+                        <tr key={kw} onClick={() => setActive(a => ({ ...a, _chartKw: isSelected ? null : kw }))}
+                          style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", background: isSelected ? "rgba(180,255,0,0.05)" : "transparent" }}>
+                          <td style={{ padding: "10px 12px", color: isSelected ? "var(--accent)" : "var(--text)", fontWeight: isSelected ? 700 : 400 }}>{kw}</td>
+                          <td style={{ padding: "6px 12px", textAlign: "center" }}><Sparkline kw={kw} /></td>
+                          {runs.slice(0, 6).reverse().map((r, i) => {
+                            const pos = r.rankings?.[kw];
+                            const allRuns = runs.slice(0, 6).reverse();
+                            const prevPos = allRuns[i - 1]?.rankings?.[kw];
+                            let delta = null;
+                            if (pos && prevPos) {
+                              const d = prevPos - pos;
+                              delta = d > 0 ? { label: `↑${d}`, color: "#00ff88" } : d < 0 ? { label: `↓${Math.abs(d)}`, color: "#ff4444" } : { label: "–", color: "var(--muted)" };
+                            }
+                            const color = !pos ? "var(--muted)" : pos <= 3 ? "#00ff88" : pos <= 10 ? "var(--accent)" : pos <= 30 ? "#f0a500" : "#ff4444";
+                            return (
+                              <td key={i} style={{ textAlign: "center", padding: "10px 12px" }}>
+                                <span style={{ color, fontWeight: 700 }}>{pos ? `#${pos}` : "—"}</span>
+                                {delta && <span style={{ color: delta.color, fontSize: 10, marginLeft: 4 }}>{delta.label}</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
                       );
                     })}
-                  </tr>
-                ))}
-                {/* Backlinks row */}
-                {runs.some(r => r.backlinks) && (
-                  <tr style={{ borderTop: "2px solid var(--border)" }}>
-                    <td style={{ padding: "10px 12px", color: "var(--muted)", fontSize: 11 }}>REF DOMAINS</td>
-                    {runs.slice(0, 6).map((r, i) => (
-                      <td key={i} style={{ textAlign: "center", padding: "10px 12px", color: "var(--accent)" }}>
-                        {r.backlinks?.referring_domains?.toLocaleString() ?? "—"}
-                      </td>
-                    ))}
-                  </tr>
-                )}
-                {runs.some(r => r.backlinks) && (
-                  <tr>
-                    <td style={{ padding: "10px 12px", color: "var(--muted)", fontSize: 11 }}>BACKLINKS</td>
-                    {runs.slice(0, 6).map((r, i) => (
-                      <td key={i} style={{ textAlign: "center", padding: "10px 12px", color: "var(--muted)" }}>
-                        {r.backlinks?.backlinks?.toLocaleString() ?? "—"}
-                      </td>
-                    ))}
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+                    {runs.some(r => r.backlinks) && (
+                      <tr style={{ borderTop: "2px solid var(--border)" }}>
+                        <td style={{ padding: "10px 12px", color: "var(--muted)", fontSize: 11 }}>REF DOMAINS</td>
+                        <td />
+                        {runs.slice(0, 6).reverse().map((r, i) => (
+                          <td key={i} style={{ textAlign: "center", padding: "10px 12px", color: "var(--accent)" }}>
+                            {r.backlinks?.referring_domains?.toLocaleString() ?? "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    )}
+                    {runs.some(r => r.backlinks) && (
+                      <tr>
+                        <td style={{ padding: "10px 12px", color: "var(--muted)", fontSize: 11 }}>BACKLINKS</td>
+                        <td />
+                        {runs.slice(0, 6).reverse().map((r, i) => (
+                          <td key={i} style={{ textAlign: "center", padding: "10px 12px", color: "var(--muted)" }}>
+                            {r.backlinks?.backlinks?.toLocaleString() ?? "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {runs.length === 0 && progress.length === 0 && (
         <div style={{ ...card, color: "var(--muted)", textAlign: "center", padding: 48 }}>No runs yet. Hit Run Now to start tracking.</div>
