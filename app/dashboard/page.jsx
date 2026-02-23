@@ -1007,37 +1007,51 @@ function Projects() {
 
     // Rankings
     if (checks.rankings && active.keywords?.length) {
-      log(`Checking ${active.keywords.length} keywords...`);
-      for (const kw of active.keywords) {
+      log(`Posting ${active.keywords.length} keyword tasks in parallel...`);
+
+      // Step 1: Post ALL tasks at once
+      const taskMap = {}; // kw -> taskId
+      await Promise.all(active.keywords.map(async (kw) => {
         const fullKw = active.city ? `${kw} ${active.city}` : kw;
-        log(`  Ranking: "${fullKw}"`);
         try {
-          // Post task
           const r1 = await fetch("/api/rank-tracker", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ keyword: fullKw, domain: active.domain }),
           });
           const d1 = await r1.json();
-          if (d1.error) { log(`  ✗ ${kw}: ${d1.error}`, "error"); run.rankings[kw] = null; continue; }
-          if (d1.done) { run.rankings[kw] = d1.position; log(`  ✓ ${kw}: #${d1.position || "N/A"}`, "done"); continue; }
+          if (d1.error) { log(`  ✗ ${kw}: ${d1.error}`, "error"); run.rankings[kw] = null; }
+          else if (d1.done) { run.rankings[kw] = d1.position; log(`  ✓ ${kw}: ${d1.position ? "#" + d1.position : "N/A"}`, "done"); }
+          else { taskMap[kw] = { taskId: d1.taskId, fullKw }; }
+        } catch (e) { log(`  ✗ ${kw}: ${e.message}`, "error"); run.rankings[kw] = null; }
+      }));
 
-          // Poll
-          let pos = null;
-          for (let i = 0; i < 24; i++) {
-            await new Promise(r => setTimeout(r, 5000));
-            const r2 = await fetch("/api/rank-tracker", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ keyword: fullKw, domain: active.domain, taskId: d1.taskId }),
-            });
-            const d2 = await r2.json();
-            if (d2.done) { pos = d2.position; break; }
-          }
-          run.rankings[kw] = pos;
-          log(`  ✓ ${kw}: ${pos ? "#" + pos : "N/A"}`, "done");
-        } catch (e) {
-          log(`  ✗ ${kw}: ${e.message}`, "error");
-          run.rankings[kw] = null;
+      const pending = Object.keys(taskMap);
+      if (pending.length > 0) {
+        log(`Waiting for ${pending.length} results...`);
+
+        // Step 2: Poll all pending tasks in parallel until all done
+        const remaining = new Set(pending);
+        for (let i = 0; i < 30 && remaining.size > 0; i++) {
+          await new Promise(r => setTimeout(r, 5000));
+          await Promise.all([...remaining].map(async (kw) => {
+            const { taskId, fullKw } = taskMap[kw];
+            try {
+              const r2 = await fetch("/api/rank-tracker", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ keyword: fullKw, domain: active.domain, taskId }),
+              });
+              const d2 = await r2.json();
+              if (d2.done) {
+                run.rankings[kw] = d2.position;
+                log(`  ✓ ${kw}: ${d2.position ? "#" + d2.position : "N/A"}`, "done");
+                remaining.delete(kw);
+              }
+            } catch (e) { log(`  ✗ ${kw}: ${e.message}`, "error"); remaining.delete(kw); }
+          }));
+          if (remaining.size > 0) log(`  Still waiting for ${remaining.size} keywords...`);
         }
+        // Mark any still pending as null
+        for (const kw of remaining) { run.rankings[kw] = null; log(`  ✗ ${kw}: timed out`, "error"); }
       }
     }
 
