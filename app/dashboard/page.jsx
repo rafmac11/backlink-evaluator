@@ -540,7 +540,7 @@ export default function Home() {
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
           <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>{"⟳ Link Evaluator"}</button>
-          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}{"↗ Backlink Explorer"}</button>
+          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>{"↗ Backlink Explorer"}</button>
         </div>
         {tab === "evaluator" ? <EvaluatorTab /> : <BacklinkExplorer />}
       </div>
