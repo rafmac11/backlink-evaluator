@@ -1032,8 +1032,8 @@ function Projects() {
         // Step 2: Poll all pending tasks in parallel until all done
         const remaining = new Set(pending);
         for (let i = 0; i < 60 && remaining.size > 0; i++) {
-          await new Promise(r => setTimeout(r, 5000));
-          let gotOne = false;
+          await new Promise(r => setTimeout(r, 10000));
+          let stillWaiting = true;
           await Promise.all([...remaining].map(async (kw) => {
             const { taskId, fullKw } = taskMap[kw];
             try {
@@ -1047,9 +1047,6 @@ function Projects() {
                 log(`  ✓ ${kw}: ${d2.position ? "#" + d2.position : "N/A"}`, "done");
                 remaining.delete(kw);
                 gotOne = true;
-              } else if (i === 0) {
-                // First poll — log status for debugging
-                log(`  [debug] ${kw}: status ${d2.statusCode} — ${d2.statusMsg || "pending"}`);
               }
             } catch (e) { log(`  ✗ ${kw}: ${e.message}`, "error"); remaining.delete(kw); }
           }));
