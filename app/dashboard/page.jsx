@@ -1068,7 +1068,8 @@ function Projects() {
         if (checks.backlinks) { 
           run.backlinks = data.backlinks; 
           if (data.backlinkError) log(`  ✗ Backlinks error: ${data.backlinkError}`, "error");
-          else log(`  ✓ Backlinks: ${data.backlinks?.referring_domains?.toLocaleString()} ref domains · ${data.backlinks?.backlinks?.toLocaleString()} total links`, "done"); 
+          else log(`  ✓ Backlinks: ${data.backlinks?.referring_domains?.toLocaleString()} ref domains · ${data.backlinks?.backlinks?.toLocaleString()} total · ${data.backlinks?.dofollow_backlinks?.toLocaleString()} dofollow`, "done");
+          if (data.blRawKeys) log(`  [fields: ${data.blRawKeys.join(", ")}]`);
         }
         if (checks.competitors && active.competitor) { run.competitorBacklinks = data.competitorBacklinks; run.opportunities = data.opportunities; log(`  ✓ Competitor gap: ${data.opportunities?.length ?? 0} opportunities`, "done"); }
       } catch (e) { log(`  ✗ ${e.message}`, "error"); }
