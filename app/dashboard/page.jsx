@@ -85,9 +85,9 @@ function ScatterPlot({ data }) {
       </div>
 
       {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflowY: "auto" }}
           onClick={() => setModalOpen(false)}>
-          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 32, maxWidth: 900, width: "100%", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}
+          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 32, maxWidth: 1000, width: "100%", boxShadow: "0 24px 80px rgba(0,0,0,0.6)", margin: "auto" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <div>
@@ -99,8 +99,8 @@ function ScatterPlot({ data }) {
               </button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, alignItems: "start" }}>
-              <ScatterChart data={data} W={500} H={380} PAD={40} onDotClick={handleDotClick} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 32, alignItems: "start" }}>
+              <ScatterChart data={data} W={580} H={440} PAD={44} onDotClick={handleDotClick} />
 
               <div>
                 <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>ALL DOMAINS ({data.length})</div>
@@ -518,6 +518,13 @@ function BacklinkExplorer() {
 // -- Main App ---------------------------------------------------------------
 export default function Home() {
   const [tab, setTab] = useState("evaluator");
+  const [theme, setTheme] = useState("dark");
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.setAttribute("data-theme", next);
+  };
   const tabStyle = (t) => ({
     padding: "8px 20px",
     background: tab === t ? "var(--accent)" : "transparent",
@@ -538,9 +545,12 @@ export default function Home() {
           </h1>
           <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation · Real PageRank data · Topical analysis · Link profile</p>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 24, alignItems: "center" }}>
           <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>{"⟳ Link Evaluator"}</button>
           <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>{"↗ Backlink Explorer"}</button>
+          <button onClick={toggleTheme} style={{ marginLeft: "auto", padding: "8px 16px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--muted)", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
         </div>
         {tab === "evaluator" ? <EvaluatorTab /> : <BacklinkExplorer />}
       </div>
