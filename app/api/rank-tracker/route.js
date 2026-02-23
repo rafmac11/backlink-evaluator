@@ -47,7 +47,7 @@ export async function POST(req) {
       }
 
       // Still processing
-      return Response.json({ done: false, taskId });
+      return Response.json({ done: false, taskId, statusCode: taskStatus, statusMsg: getData?.tasks?.[0]?.status_message ?? null });
     }
 
     // MODE 1: Create a new task

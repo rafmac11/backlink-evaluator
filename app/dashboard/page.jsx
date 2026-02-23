@@ -1033,6 +1033,7 @@ function Projects() {
         const remaining = new Set(pending);
         for (let i = 0; i < 60 && remaining.size > 0; i++) {
           await new Promise(r => setTimeout(r, 5000));
+          let gotOne = false;
           await Promise.all([...remaining].map(async (kw) => {
             const { taskId, fullKw } = taskMap[kw];
             try {
@@ -1045,10 +1046,14 @@ function Projects() {
                 run.rankings[kw] = d2.position;
                 log(`  ✓ ${kw}: ${d2.position ? "#" + d2.position : "N/A"}`, "done");
                 remaining.delete(kw);
+                gotOne = true;
+              } else if (i === 0) {
+                // First poll — log status for debugging
+                log(`  [debug] ${kw}: status ${d2.statusCode} — ${d2.statusMsg || "pending"}`);
               }
             } catch (e) { log(`  ✗ ${kw}: ${e.message}`, "error"); remaining.delete(kw); }
           }));
-          if (remaining.size > 0) log(`  Still waiting for ${remaining.size} keywords...`);
+          if (remaining.size > 0) log(`  Still waiting for ${remaining.size} keywords... (poll ${i+1}/60)`);
         }
         // Mark any still pending as null
         for (const kw of remaining) { run.rankings[kw] = null; log(`  ✗ ${kw}: timed out`, "error"); }
