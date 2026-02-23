@@ -935,6 +935,8 @@ function Projects() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState([]);
   const [checks, setChecks] = useState({ rankings: true, backlinks: true, competitors: true });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
   const input = { width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none", boxSizing: "border-box" };
@@ -943,20 +945,34 @@ function Projects() {
   useEffect(() => { loadProjects(); }, []);
 
   async function loadProjects() {
-    const res = await fetch("/api/projects");
-    const data = await res.json();
-    setProjects(data.projects || []);
+    try {
+      const res = await fetch("/api/projects");
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setProjects(data.projects || []);
+    } catch (e) {
+      console.error("loadProjects error:", e);
+    }
   }
 
   async function saveProject() {
-    const cleaned = { ...editing, keywords: (editing.keywords || []).filter(k => k.trim()) };
-    const res = await fetch("/api/projects", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "save", project: cleaned }),
-    });
-    const data = await res.json();
-    await loadProjects();
-    openDetail(data.project);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const cleaned = { ...editing, keywords: (editing.keywords || []).filter(k => k.trim()) };
+      const res = await fetch("/api/projects", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save", project: cleaned }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      await loadProjects();
+      openDetail(data.project);
+    } catch (e) {
+      setSaveError(e.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function deleteProject(id) {
@@ -1114,7 +1130,10 @@ function Projects() {
               {editing?.city ? ` — "${editing.city}" will be appended to each` : " — tip: leave City blank and include location in each keyword"}
             </div>
           </div>
-          <button style={btn()} onClick={saveProject}>SAVE PROJECT</button>
+          {saveError && <div style={{ color: "#ff4444", fontSize: 13, padding: "10px 14px", background: "rgba(255,68,68,0.1)", borderRadius: 8, border: "1px solid #ff4444" }}>{saveError}</div>}
+          <button style={{ ...btn(), opacity: saving ? 0.6 : 1 }} onClick={saveProject} disabled={saving}>
+            {saving ? "SAVING..." : "SAVE PROJECT"}
+          </button>
         </div>
       </div>
     </div>
