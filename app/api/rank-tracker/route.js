@@ -34,7 +34,7 @@ export async function POST(req) {
           }
         }
 
-        const top10 = organicItems.slice(0, 10).map(i => ({
+        const top10 = organicItems.slice(0, 100).map(i => ({
           position: i.rank_absolute,
           domain: i.domain,
           title: i.title,

@@ -617,7 +617,7 @@ function RankTracker() {
           </div>
 
           <div style={card}>
-            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"TOP 10 RESULTS"}</div>
+            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"TOP 100 RESULTS"}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {result.top10.map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: item.isTarget ? "rgba(180,255,0,0.08)" : "var(--bg)", border: "1px solid " + (item.isTarget ? "var(--accent)" : "var(--border)"), borderRadius: 8 }}>
