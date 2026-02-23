@@ -3,28 +3,29 @@ import { NextResponse } from "next/server";
 export function middleware(req) {
   const { pathname } = req.nextUrl;
 
-  // Landing page and static assets are public
-  if (pathname === "/" || pathname.startsWith("/api/") || pathname.startsWith("/_next/") || pathname === "/favicon.ico") {
+  // Public routes
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico"
+  ) {
     return NextResponse.next();
   }
 
-  // Protect /dashboard and everything else
-  const basicAuth = req.headers.get("authorization");
+  // Check auth cookie
+  const auth = req.cookies.get("auth_token");
   const password = process.env.APP_PASSWORD || "changeme";
 
-  if (basicAuth) {
-    const [scheme, encoded] = basicAuth.split(" ");
-    if (scheme === "Basic" && encoded) {
-      const decoded = Buffer.from(encoded, "base64").toString("utf-8");
-      const [, pwd] = decoded.split(":");
-      if (pwd === password) return NextResponse.next();
-    }
+  if (auth?.value === Buffer.from(password).toString("base64")) {
+    return NextResponse.next();
   }
 
-  return new NextResponse("Unauthorized", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Link Value Platform"' },
-  });
+  // Redirect to login
+  const loginUrl = new URL("/login", req.url);
+  loginUrl.searchParams.set("from", pathname);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
