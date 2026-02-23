@@ -53,3 +53,16 @@ body {
   pointer-events: none;
   z-index: 999;
 }
+
+[data-theme="light"] {
+  --bg: #f5f5f0;
+  --surface: #ffffff;
+  --surface2: #ebebeb;
+  --border: #d0d0d0;
+  --accent: #5a9e00;
+  --accent2: #00a882;
+  --danger: #cc2222;
+  --warn: #cc7700;
+  --text: #111118;
+  --muted: #666670;
+}
