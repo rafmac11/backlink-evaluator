@@ -528,6 +528,7 @@ function RankTracker() {
   const fetch_ = async () => {
     setLoading(true); setResult(null); setError(null);
     try {
+      // Step 1: Create task
       const res = await fetch("/api/rank-tracker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -535,7 +536,22 @@ function RankTracker() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setResult(data);
+      if (data.done) { setResult(data); return; }
+
+      // Step 2: Poll for results client-side (avoids Railway 30s timeout)
+      const taskId = data.taskId;
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const pollRes = await fetch("/api/rank-tracker", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keyword, domain, taskId }),
+        });
+        const pollData = await pollRes.json();
+        if (pollData.error) throw new Error(pollData.error);
+        if (pollData.done) { setResult(pollData); return; }
+      }
+      throw new Error("Timed out waiting for results. Please try again.");
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   };
 
