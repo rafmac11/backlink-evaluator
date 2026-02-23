@@ -500,7 +500,7 @@ function BacklinkExplorer() {
                       </td>
                       <td style={{ ...tdStyle, color: "var(--muted)", fontSize: 11 }}>{b.first_seen ? new Date(b.first_seen).toLocaleDateString() : "-"}</td>
                       <td style={tdStyle}>
-                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}{"↗ view"}</a>
+                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>{"↗ view"}</a>
                       </td>
                     </tr>
                   ))}
