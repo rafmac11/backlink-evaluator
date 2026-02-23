@@ -517,6 +517,263 @@ function BacklinkExplorer() {
 }
 
 // -- Main App ---------------------------------------------------------------
+// -- Rank Tracker Tab -------------------------------------------------------
+function RankTracker() {
+  const [keyword, setKeyword] = useState("");
+  const [domain, setDomain] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const fetch_ = async () => {
+    setLoading(true); setResult(null); setError(null);
+    try {
+      const res = await fetch("/api/rank-tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword, domain }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setResult(data);
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  };
+
+  const positionColor = (pos) => {
+    if (!pos) return "var(--muted)";
+    if (pos <= 3) return "#00ff88";
+    if (pos <= 10) return "var(--accent)";
+    if (pos <= 30) return "#f0a500";
+    return "#ff4444";
+  };
+
+  const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={card}>
+        <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"RANK TRACKER"}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "end" }}>
+          <div>
+            <label style={{ display: "block", fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>{"KEYWORD"}</label>
+            <input value={keyword} onChange={e => setKeyword(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && keyword && domain && fetch_()}
+              placeholder="e.g. landscaping minneapolis"
+              style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>{"DOMAIN"}</label>
+            <input value={domain} onChange={e => setDomain(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && keyword && domain && fetch_()}
+              placeholder="e.g. yoursite.com"
+              style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none" }} />
+          </div>
+          <button onClick={fetch_} disabled={loading || !keyword || !domain}
+            style={{ padding: "10px 24px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 13, fontWeight: 700, cursor: loading || !keyword || !domain ? "not-allowed" : "pointer", letterSpacing: 1, whiteSpace: "nowrap" }}>
+            {loading ? "CHECKING..." : "CHECK RANK"}
+          </button>
+        </div>
+      </div>
+
+      {error && <div style={{ ...card, border: "1px solid var(--danger)", color: "var(--danger)", fontSize: 13 }}>{error}</div>}
+
+      {result && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+            <div style={{ ...card, textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>{"GOOGLE POSITION"}</div>
+              <div style={{ fontSize: 64, fontFamily: "var(--font-display)", fontWeight: 900, color: positionColor(result.position), lineHeight: 1 }}>
+                {result.position ? `#${result.position}` : "N/A"}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+                {result.position ? (result.position <= 10 ? "First page!" : result.position <= 30 ? "Page 2-3" : "Beyond page 3") : "Not in top 100"}
+              </div>
+            </div>
+            <div style={{ ...card, textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>{"KEYWORD"}</div>
+              <div style={{ fontSize: 20, fontFamily: "var(--font-display)", fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>{result.keyword}</div>
+            </div>
+            <div style={{ ...card, textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>{"DOMAIN"}</div>
+              <div style={{ fontSize: 16, fontFamily: "var(--font-mono)", color: "var(--accent)" }}>{result.domain}</div>
+              {result.matchedItem && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.matchedItem.title}</div>}
+            </div>
+          </div>
+
+          <div style={card}>
+            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"TOP 10 RESULTS"}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {result.top10.map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: item.isTarget ? "rgba(180,255,0,0.08)" : "var(--bg)", border: "1px solid " + (item.isTarget ? "var(--accent)" : "var(--border)"), borderRadius: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: item.isTarget ? "var(--accent)" : "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: item.isTarget ? "#000" : "var(--muted)", flexShrink: 0 }}>
+                    {item.position}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: item.isTarget ? "var(--accent)" : "var(--text)", fontWeight: item.isTarget ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.domain}</div>
+                  </div>
+                  <a href={item.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", flexShrink: 0 }}>{"↗"}</a>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// -- Competitor Gap Tab -----------------------------------------------------
+function CompetitorGap() {
+  const [domain, setDomain] = useState("");
+  const [competitor, setCompetitor] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const fetch_ = async () => {
+    setLoading(true); setResult(null); setError(null);
+    try {
+      const res = await fetch("/api/competitor-gap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain, competitor }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setResult(data);
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  };
+
+  const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
+
+  const StatBar = ({ label, yourVal, compVal }) => {
+    const max = Math.max(yourVal, compVal, 1);
+    const yourPct = Math.round((yourVal / max) * 100);
+    const compPct = Math.round((compVal / max) * 100);
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
+          <span style={{ color: "var(--accent)" }}>{yourVal.toLocaleString()}</span>
+          <span style={{ letterSpacing: 2 }}>{label}</span>
+          <span style={{ color: "#ff4444" }}>{compVal.toLocaleString()}</span>
+        </div>
+        <div style={{ display: "flex", gap: 4, height: 8 }}>
+          <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ width: yourPct + "%", background: "var(--accent)", borderRadius: 4, transition: "width 0.6s ease" }} />
+          </div>
+          <div style={{ width: 2, background: "var(--border)" }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ width: compPct + "%", background: "#ff4444", borderRadius: 4, transition: "width 0.6s ease" }} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={card}>
+        <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"COMPETITOR GAP ANALYSIS"}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "end" }}>
+          <div>
+            <label style={{ display: "block", fontSize: 10, color: "var(--accent)", letterSpacing: 2, marginBottom: 6 }}>{"YOUR DOMAIN"}</label>
+            <input value={domain} onChange={e => setDomain(e.target.value)}
+              placeholder="yoursite.com"
+              style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--accent)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 10, color: "#ff4444", letterSpacing: 2, marginBottom: 6 }}>{"COMPETITOR"}</label>
+            <input value={competitor} onChange={e => setCompetitor(e.target.value)}
+              placeholder="competitor.com"
+              style={{ width: "100%", background: "var(--bg)", border: "1px solid #ff4444", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none" }} />
+          </div>
+          <button onClick={fetch_} disabled={loading || !domain || !competitor}
+            style={{ padding: "10px 24px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 13, fontWeight: 700, cursor: loading || !domain || !competitor ? "not-allowed" : "pointer", letterSpacing: 1, whiteSpace: "nowrap" }}>
+            {loading ? "ANALYZING..." : "ANALYZE GAP"}
+          </button>
+        </div>
+      </div>
+
+      {error && <div style={{ ...card, border: "1px solid var(--danger)", color: "var(--danger)", fontSize: 13 }}>{error}</div>}
+
+      {result && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ ...card, borderColor: "var(--accent)" }}>
+              <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 2, marginBottom: 8 }}>{"YOUR DOMAIN"}</div>
+              <div style={{ fontSize: 18, fontFamily: "var(--font-mono)", color: "var(--text)", marginBottom: 16 }}>{result.your.domain}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[["BACKLINKS", result.your.backlinks], ["REF DOMAINS", result.your.referring_domains], ["AUTHORITY RANK", result.your.rank]].map(([l, v]) => (
+                  <div key={l}>
+                    <div style={{ fontSize: 9, color: "var(--muted)", letterSpacing: 2 }}>{l}</div>
+                    <div style={{ fontSize: 22, fontFamily: "var(--font-display)", fontWeight: 800, color: "var(--accent)" }}>{(v || 0).toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ ...card, borderColor: "#ff4444" }}>
+              <div style={{ fontSize: 10, color: "#ff4444", letterSpacing: 2, marginBottom: 8 }}>{"COMPETITOR"}</div>
+              <div style={{ fontSize: 18, fontFamily: "var(--font-mono)", color: "var(--text)", marginBottom: 16 }}>{result.competitor.domain}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[["BACKLINKS", result.competitor.backlinks], ["REF DOMAINS", result.competitor.referring_domains], ["AUTHORITY RANK", result.competitor.rank]].map(([l, v]) => (
+                  <div key={l}>
+                    <div style={{ fontSize: 9, color: "var(--muted)", letterSpacing: 2 }}>{l}</div>
+                    <div style={{ fontSize: 22, fontFamily: "var(--font-display)", fontWeight: 800, color: "#ff4444" }}>{(v || 0).toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={card}>
+            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 20 }}>{"HEAD-TO-HEAD COMPARISON"}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginBottom: 12 }}>
+              <span style={{ color: "var(--accent)" }}>{result.your.domain}</span>
+              <span style={{ color: "#ff4444" }}>{result.competitor.domain}</span>
+            </div>
+            <StatBar label="BACKLINKS" yourVal={result.your.backlinks} compVal={result.competitor.backlinks} />
+            <StatBar label="REF DOMAINS" yourVal={result.your.referring_domains} compVal={result.competitor.referring_domains} />
+            <StatBar label="AUTHORITY" yourVal={result.your.rank} compVal={result.competitor.rank} />
+          </div>
+
+          {result.opportunities.length > 0 && (
+            <div style={card}>
+              <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 6 }}>{"LINK OPPORTUNITIES"}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>{"Domains linking to your competitor but not to you — prime outreach targets"}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {result.opportunities.slice(0, 20).map((opp, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: 4, background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "var(--muted)", flexShrink: 0 }}>{i + 1}</div>
+                    <div style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--text)" }}>{opp.domain}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 1 }}>{"RANK "}<span style={{ color: "var(--accent)" }}>{opp.rank}</span></div>
+                    <a href={`https://${opp.domain}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none" }}>{"↗"}</a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.overlap.length > 0 && (
+            <div style={card}>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 3, marginBottom: 6 }}>{"COMMON BACKLINKS"}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>{"Domains linking to both you and your competitor"}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {result.overlap.map((o, i) => (
+                  <a key={i} href={`https://${o.domain}`} target="_blank" rel="noreferrer"
+                    style={{ padding: "4px 10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted)", textDecoration: "none" }}>
+                    {o.domain}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const [tab, setTab] = useState("evaluator");
   const [theme, setTheme] = useState("dark");
@@ -561,6 +818,8 @@ export default function Home() {
         <div style={{ display: "flex", gap: 8, marginBottom: 24, alignItems: "center" }}>
           <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>{"⟳ Link Evaluator"}</button>
           <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>{"↗ Backlink Explorer"}</button>
+          <button style={tabStyle("rank")} onClick={() => setTab("rank")}>{"◎ Rank Tracker"}</button>
+          <button style={tabStyle("gap")} onClick={() => setTab("gap")}>{"⊕ Competitor Gap"}</button>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button onClick={toggleTheme} style={{ padding: "8px 14px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--muted)", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>
               {theme === "dark" ? "☀️" : "🌙"}
@@ -570,7 +829,7 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {tab === "evaluator" ? <EvaluatorTab /> : <BacklinkExplorer />}
+        {tab === "evaluator" ? <EvaluatorTab /> : tab === "explorer" ? <BacklinkExplorer /> : tab === "rank" ? <RankTracker /> : <CompetitorGap />}
       </div>
     </>
   );
