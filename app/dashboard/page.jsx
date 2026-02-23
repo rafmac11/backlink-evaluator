@@ -272,11 +272,11 @@ function EvaluatorTab() {
         </div>
         <button onClick={evaluate} disabled={loading || !sourceUrl || !targetUrl}
           style={{ width: "100%", padding: "14px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 700, cursor: loading || !sourceUrl || !targetUrl ? "not-allowed" : "pointer", letterSpacing: 1 }}>
-          {loading ? "o RESEARCHING & SCORING..." : "-> RUN EVALUATION"}
+          {loading ? "RESEARCHING & SCORING..." : "RUN EVALUATION"}
         </button>
         {loading && <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Claude is researching both domains (~30s)...</p>}
       </div>
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>{error}</div>}
       {result && (
         <>
           <div style={{ background: "var(--surface2)", border: `1px solid ${recColor(result.final?.recommendation)}`, borderRadius: 16, padding: "28px 32px", animation: "fadeUp 0.4s ease both" }}>
@@ -386,13 +386,13 @@ function BacklinkExplorer() {
             onKeyDown={(e) => e.key === "Enter" && url && fetchBacklinks()} />
           <button onClick={fetchBacklinks} disabled={loading || !url}
             style={{ padding: "10px 28px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 700, cursor: loading || !url ? "not-allowed" : "pointer" }}>
-            {loading ? "o" : "-> FETCH"}
+            {loading ? "o" : "FETCH"}
           </button>
         </div>
         {loading && <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Fetching backlink profile from DataForSEO...</p>}
       </div>
 
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>{error}</div>}
 
       {result && s && (
         <>
@@ -436,9 +436,9 @@ function BacklinkExplorer() {
               </div>
               <ScatterPlot data={s.scatter} />
               <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10, color: "var(--muted)" }}>
-                <span style={{ color: "#c8f542" }}>? TF &gt; CF</span>
-                <span style={{ color: "#f54242" }}>? CF &gt; TF</span>
-                <span style={{ color: "#42f5c8" }}>? Balanced</span>
+                <span style={{ color: "#c8f542" }}>{"● TF > CF"}</span>
+                <span style={{ color: "#f54242" }}>{"● CF > TF"}</span>
+                <span style={{ color: "#42f5c8" }}>{"● Balanced"}</span>
               </div>
             </div>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "24px" }}>
@@ -474,7 +474,7 @@ function BacklinkExplorer() {
                       { key: "dofollow", label: "TYPE" }, { key: "first_seen", label: "FIRST SEEN" }
                     ].map(({ key, label }) => (
                       <th key={key} style={thStyle(key)} onClick={() => toggleSort(key)}>
-                        {label} {sortKey === key ? (sortDir === "desc" ? "?" : "?") : ""}
+                        {label} {sortKey === key ? (sortDir === "desc" ? "↓" : "↑") : ""}
                       </th>
                     ))}
                     <th style={{ ...thStyle(""), cursor: "default" }}>LINK</th>
@@ -536,7 +536,7 @@ export default function Home() {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 800, lineHeight: 1.1, marginBottom: 12 }}>
             Link Value <span style={{ color: "var(--accent)" }}>Platform</span>
           </h1>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation ? Real PageRank data ? Topical analysis ? Link profile</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation · Real PageRank data · Topical analysis · Link profile</p>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
           <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>{"⟳ Link Evaluator"}</button>
