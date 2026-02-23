@@ -21,9 +21,10 @@ export async function POST(req) {
     const backlinks = bl ? {
       backlinks: bl.backlinks ?? 0,
       referring_domains: bl.referring_domains ?? 0,
+      referring_domains_nofollow: bl.referring_domains_nofollow ?? 0,
+      dofollow_domains: (bl.referring_domains ?? 0) - (bl.referring_domains_nofollow ?? 0),
       rank: bl.rank ?? 0,
-      dofollow_backlinks: bl.backlinks_dofollow ?? bl.dofollow_backlinks ?? bl.dofollow ?? 0,
-      nofollow_backlinks: bl.backlinks_nofollow ?? bl.nofollow_backlinks ?? bl.nofollow ?? 0,
+      broken_backlinks: bl.broken_backlinks ?? 0,
     } : null;
     const backlinkError = !bl ? `status ${blStatus}: ${blMsg} (target: ${cleanDomain})` : null;
 
@@ -60,7 +61,7 @@ export async function POST(req) {
       opportunities = items.map(i => ({ domain: i.domain, rank: i.rank }));
     }
 
-    return Response.json({ backlinks, backlinkError, blRawKeys: bl ? Object.keys(bl) : null, competitorBacklinks, opportunities });
+    return Response.json({ backlinks, backlinkError, competitorBacklinks, opportunities });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }
