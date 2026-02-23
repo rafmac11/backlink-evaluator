@@ -36,6 +36,8 @@ export async function POST(req) {
     const anchorItems = anchorsData?.tasks?.[0]?.result?.[0]?.items ?? [];
     const refDomainItems = refDomainsData?.tasks?.[0]?.result?.[0]?.items ?? [];
     const totalCount = backlinksData?.tasks?.[0]?.result?.[0]?.total_count ?? 0;
+    const totalRefIPs = backlinksData?.tasks?.[0]?.result?.[0]?.referring_ips
+      ?? new Set(items.map(i => i.ip_from).filter(Boolean)).size;
 
     // Collect unique domains to query OpenPageRank (max 100 per request)
     const uniqueDomains = [...new Set([domain, ...items.map(i => i.domain_from)])].slice(0, 100);
@@ -64,7 +66,6 @@ export async function POST(req) {
     }
 
     const targetOpr = oprMap[domain] || { page_rank_integer: 0, page_rank_decimal: 0, rank: 0 };
-    const uniqueIPs = new Set(items.map(i => i.ip_from).filter(Boolean)).size;
     const totalBacklinks = totalCount || items.length;
     const refDomains = new Set(items.map(i => i.domain_from)).size;
 
@@ -117,7 +118,7 @@ export async function POST(req) {
       citation_flow: citationFlow,
       backlinks: totalBacklinks,
       referring_domains: refDomains,
-      referring_ips: uniqueIPs,
+      referring_ips: totalRefIPs,
       dofollow_pct: items.length > 0 ? Math.round(items.filter(i => i.dofollow).length / items.length * 100) : 0,
       top_anchors: anchorItems.slice(0, 8).map(a => ({ anchor: a.anchor || "(none)", count: a.backlinks ?? 0 })),
       topics,
