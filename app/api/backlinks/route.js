@@ -12,8 +12,8 @@ export async function POST(req) {
     const domain = targetUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     const dfsHeaders = { Authorization: `Basic ${credentials}`, "Content-Type": "application/json" };
 
-    // Fetch backlinks + anchors + referring domains from DataForSEO
-    const [backlinksRes, anchorsRes, refDomainsRes] = await Promise.all([
+    // Fetch backlinks + anchors + referring domains + summary from DataForSEO
+    const [backlinksRes, anchorsRes, refDomainsRes, summaryRes] = await Promise.all([
       fetch("https://api.dataforseo.com/v3/backlinks/backlinks/live", {
         method: "POST", headers: dfsHeaders,
         body: JSON.stringify([{ target: domain, include_subdomains: true, limit: 100, order_by: ["rank,desc"] }]),
@@ -26,18 +26,22 @@ export async function POST(req) {
         method: "POST", headers: dfsHeaders,
         body: JSON.stringify([{ target: domain, include_subdomains: true, limit: 100, order_by: ["rank,desc"] }]),
       }),
+      fetch("https://api.dataforseo.com/v3/backlinks/summary/live", {
+        method: "POST", headers: dfsHeaders,
+        body: JSON.stringify([{ target: domain, include_subdomains: true }]),
+      }),
     ]);
 
-    const [backlinksData, anchorsData, refDomainsData] = await Promise.all([
-      backlinksRes.json(), anchorsRes.json(), refDomainsRes.json(),
+    const [backlinksData, anchorsData, refDomainsData, summaryData] = await Promise.all([
+      backlinksRes.json(), anchorsRes.json(), refDomainsRes.json(), summaryRes.json(),
     ]);
 
     const items = backlinksData?.tasks?.[0]?.result?.[0]?.items ?? [];
     const anchorItems = anchorsData?.tasks?.[0]?.result?.[0]?.items ?? [];
     const refDomainItems = refDomainsData?.tasks?.[0]?.result?.[0]?.items ?? [];
-    const totalCount = backlinksData?.tasks?.[0]?.result?.[0]?.total_count ?? 0;
-    const totalRefIPs = backlinksData?.tasks?.[0]?.result?.[0]?.referring_ips
-      ?? new Set(items.map(i => i.ip_from).filter(Boolean)).size;
+    const dfsSummary = summaryData?.tasks?.[0]?.result?.[0] ?? {};
+    const totalCount = dfsSummary.backlinks ?? backlinksData?.tasks?.[0]?.result?.[0]?.total_count ?? 0;
+    const totalRefIPs = dfsSummary.referring_ips ?? new Set(items.map(i => i.ip_from).filter(Boolean)).size;
 
     // Collect unique domains to query OpenPageRank (max 100 per request)
     const uniqueDomains = [...new Set([domain, ...items.map(i => i.domain_from)])].slice(0, 100);
