@@ -1031,7 +1031,7 @@ function Projects() {
 
         // Step 2: Poll all pending tasks in parallel until all done
         const remaining = new Set(pending);
-        for (let i = 0; i < 30 && remaining.size > 0; i++) {
+        for (let i = 0; i < 60 && remaining.size > 0; i++) {
           await new Promise(r => setTimeout(r, 5000));
           await Promise.all([...remaining].map(async (kw) => {
             const { taskId, fullKw } = taskMap[kw];
