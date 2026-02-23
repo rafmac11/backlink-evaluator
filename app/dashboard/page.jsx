@@ -949,9 +949,10 @@ function Projects() {
   }
 
   async function saveProject() {
+    const cleaned = { ...editing, keywords: (editing.keywords || []).filter(k => k.trim()) };
     const res = await fetch("/api/projects", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "save", project: editing }),
+      body: JSON.stringify({ action: "save", project: cleaned }),
     });
     const data = await res.json();
     await loadProjects();
@@ -1103,12 +1104,15 @@ function Projects() {
             <label style={{ display: "block", fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>KEYWORDS (one per line)</label>
             <textarea
               value={(editing?.keywords || []).join("\n")}
-              onChange={e => setEditing(x => ({ ...x, keywords: e.target.value.split("\n").map(k => k.trim()).filter(Boolean) }))}
-              placeholder={"copier lease\nprinter repair\noffice equipment rental"}
-              rows={8}
-              style={{ ...input, resize: "vertical", lineHeight: 1.6 }}
+              onChange={e => setEditing(x => ({ ...x, keywords: e.target.value.split("\n") }))}
+              placeholder={"Copier Sales Scottsdale AZ\nCopier Sales Glendale AZ\nCopier lease Phoenix AZ\nMF printer sales Mesa AZ"}
+              rows={10}
+              style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.8, whiteSpace: "pre" }}
             />
-            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{editing?.keywords?.length || 0} keywords — city will be appended automatically when checking ranks</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+              {(editing?.keywords || []).filter(k => k.trim()).length} keywords
+              {editing?.city ? ` — "${editing.city}" will be appended to each` : " — tip: leave City blank and include location in each keyword"}
+            </div>
           </div>
           <button style={btn()} onClick={saveProject}>SAVE PROJECT</button>
         </div>
