@@ -34,7 +34,7 @@ export async function POST(req) {
           }
         }
 
-        const top10 = organicItems.slice(0, 100).map(i => ({
+        const top10 = organicItems.slice(0, 50).map(i => ({
           position: i.rank_absolute,
           domain: i.domain,
           title: i.title,
@@ -55,7 +55,7 @@ export async function POST(req) {
 
     const postRes = await fetch("https://api.dataforseo.com/v3/serp/google/organic/task_post", {
       method: "POST", headers,
-      body: JSON.stringify([{ keyword, location_name: "United States", language_name: "English", device: "desktop", depth: 100 }]),
+      body: JSON.stringify([{ keyword, location_name: "United States", language_name: "English", device: "desktop", depth: 50 }]),
     });
 
     const postData = await postRes.json();

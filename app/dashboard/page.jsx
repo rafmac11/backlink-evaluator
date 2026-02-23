@@ -540,8 +540,8 @@ function RankTracker() {
 
       // Step 2: Poll for results client-side (avoids Railway 30s timeout)
       const taskId = data.taskId;
-      for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 3000));
+      for (let i = 0; i < 24; i++) {
+        await new Promise(r => setTimeout(r, 5000));
         const pollRes = await fetch("/api/rank-tracker", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -617,7 +617,7 @@ function RankTracker() {
           </div>
 
           <div style={card}>
-            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"TOP 100 RESULTS"}</div>
+            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"TOP 50 RESULTS"}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {result.top10.map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: item.isTarget ? "rgba(180,255,0,0.08)" : "var(--bg)", border: "1px solid " + (item.isTarget ? "var(--accent)" : "var(--border)"), borderRadius: 8 }}>
