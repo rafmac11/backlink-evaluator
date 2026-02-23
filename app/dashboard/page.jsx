@@ -1007,33 +1007,34 @@ function Projects() {
 
     // Rankings
     if (checks.rankings && active.keywords?.length) {
-      log(`Posting ${active.keywords.length} keyword tasks in parallel...`);
+      log(`Posting ${active.keywords.length} keywords in batches of 5...`);
 
-      // Step 1: Post ALL tasks at once
-      const taskMap = {}; // kw -> taskId
-      await Promise.all(active.keywords.map(async (kw) => {
-        const fullKw = active.city ? `${kw} ${active.city}` : kw;
-        try {
-          const r1 = await fetch("/api/rank-tracker", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ keyword: fullKw, domain: active.domain }),
-          });
-          const d1 = await r1.json();
-          if (d1.error) { log(`  ✗ ${kw}: ${d1.error}`, "error"); run.rankings[kw] = null; }
-          else if (d1.done) { run.rankings[kw] = d1.position; log(`  ✓ ${kw}: ${d1.position ? "#" + d1.position : "N/A"}`, "done"); }
-          else { taskMap[kw] = { taskId: d1.taskId, fullKw }; }
-        } catch (e) { log(`  ✗ ${kw}: ${e.message}`, "error"); run.rankings[kw] = null; }
-      }));
+      const taskMap = {};
+      const batchSize = 5;
+      for (let b = 0; b < active.keywords.length; b += batchSize) {
+        const batch = active.keywords.slice(b, b + batchSize);
+        await Promise.all(batch.map(async (kw) => {
+          const fullKw = active.city ? `${kw} ${active.city}` : kw;
+          try {
+            const r1 = await fetch("/api/rank-tracker", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ keyword: fullKw, domain: active.domain }),
+            });
+            const d1 = await r1.json();
+            if (d1.error) { log(`  ✗ ${kw}: ${d1.error}`, "error"); run.rankings[kw] = null; }
+            else if (d1.done) { run.rankings[kw] = d1.position; log(`  ✓ ${kw}: ${d1.position ? "#" + d1.position : "N/A"}`, "done"); }
+            else { taskMap[kw] = { taskId: d1.taskId, fullKw }; log(`  ↑ queued: ${kw}`); }
+          } catch (e) { log(`  ✗ ${kw}: ${e.message}`, "error"); run.rankings[kw] = null; }
+        }));
+        if (b + batchSize < active.keywords.length) await new Promise(r => setTimeout(r, 2000));
+      }
 
       const pending = Object.keys(taskMap);
       if (pending.length > 0) {
-        log(`Waiting for ${pending.length} results...`);
-
-        // Step 2: Poll all pending tasks in parallel until all done
+        log(`Polling ${pending.length} tasks every 10s (up to 10 min)...`);
         const remaining = new Set(pending);
         for (let i = 0; i < 60 && remaining.size > 0; i++) {
           await new Promise(r => setTimeout(r, 10000));
-          let stillWaiting = true;
           await Promise.all([...remaining].map(async (kw) => {
             const { taskId, fullKw } = taskMap[kw];
             try {
@@ -1046,13 +1047,11 @@ function Projects() {
                 run.rankings[kw] = d2.position;
                 log(`  ✓ ${kw}: ${d2.position ? "#" + d2.position : "N/A"}`, "done");
                 remaining.delete(kw);
-                gotOne = true;
               }
             } catch (e) { log(`  ✗ ${kw}: ${e.message}`, "error"); remaining.delete(kw); }
           }));
-          if (remaining.size > 0) log(`  Still waiting for ${remaining.size} keywords... (poll ${i+1}/60)`);
+          if (remaining.size > 0) log(`  Waiting for ${remaining.size} more... (${(i+1)*10}s)`);
         }
-        // Mark any still pending as null
         for (const kw of remaining) { run.rankings[kw] = null; log(`  ✗ ${kw}: timed out`, "error"); }
       }
     }
