@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 // -- Donut Chart ------------------------------------------------------------
 function DonutChart({ value, max = 100, color, label, size = 120 }) {
@@ -27,16 +28,13 @@ function DonutChart({ value, max = 100, color, label, size = 120 }) {
 }
 
 // -- Scatter Plot -----------------------------------------------------------
-function ScatterPlot({ data }) {
+function ScatterChart({ data, W, H, PAD, onDotClick }) {
   const [hovered, setHovered] = useState(null);
-  const W = 280, H = 220, PAD = 32;
-  if (!data || data.length === 0) return null;
   const toX = (tf) => PAD + (tf / 100) * (W - PAD * 2);
   const toY = (cf) => H - PAD - (cf / 100) * (H - PAD * 2);
   return (
-    <div style={{ position: "relative" }}>
-      <svg width={W} height={H} style={{ overflow: "visible" }}>
-        {/* Grid */}
+    <div style={{ position: "relative", width: W, height: H }}>
+      <svg width={W} height={H} style={{ overflow: "visible", display: "block" }}>
         {[0, 25, 50, 75, 100].map(v => (
           <g key={v}>
             <line x1={toX(v)} y1={PAD} x2={toX(v)} y2={H - PAD} stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
@@ -45,29 +43,95 @@ function ScatterPlot({ data }) {
             <text x={PAD - 6} y={toY(v) + 3} textAnchor="end" fill="var(--muted)" fontSize="9">{v}</text>
           </g>
         ))}
-        {/* Diagonal reference line */}
         <line x1={toX(0)} y1={toY(0)} x2={toX(100)} y2={toY(100)} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
-        {/* Dots */}
         {data.map((d, i) => (
-          <circle key={i} cx={toX(d.tf)} cy={toY(d.cf)} r={hovered === i ? 6 : 4}
+          <circle key={i} cx={toX(d.tf)} cy={toY(d.cf)} r={hovered === i ? 8 : 5}
             fill={d.tf > d.cf ? "#c8f542" : d.tf < d.cf ? "#f54242" : "#42f5c8"}
-            opacity={0.8} style={{ cursor: "pointer", transition: "r 0.2s" }}
-            onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)} />
+            opacity={0.85} style={{ cursor: onDotClick ? "pointer" : "default", transition: "r 0.15s" }}
+            onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}
+            onClick={() => onDotClick && onDotClick(d)} />
         ))}
-        {/* Axis labels */}
         <text x={W / 2} y={H} textAnchor="middle" fill="var(--muted)" fontSize="10" letterSpacing="1">PAGE RANK SCORE</text>
-        <text x={10} y={H / 2} textAnchor="middle" fill="var(--muted)" fontSize="10" letterSpacing="1"
-          transform={`rotate(-90, 10, ${H / 2})`}>LINK VOLUME</text>
+        <text x={12} y={H / 2} textAnchor="middle" fill="var(--muted)" fontSize="10" letterSpacing="1"
+          transform={`rotate(-90, 12, ${H / 2})`}>LINK VOLUME</text>
       </svg>
       {hovered !== null && data[hovered] && (
-        <div style={{ position: "absolute", top: toY(data[hovered].cf) - 40, left: toX(data[hovered].tf) + 10,
-          background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px",
-          fontSize: 11, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 10 }}>
-          <div style={{ fontWeight: 700, marginBottom: 2 }}>{data[hovered].domain}</div>
-          <div style={{ color: "var(--muted)" }}>TF: {data[hovered].tf} ? CF: {data[hovered].cf}</div>
+        <div style={{ position: "absolute", top: Math.max(0, toY(data[hovered].cf) - 48), left: Math.min(toX(data[hovered].tf) + 12, W - 160),
+          background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px",
+          fontSize: 11, pointerEvents: "none", whiteSpace: "nowrap", zIndex: 10, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+          <div style={{ fontWeight: 700, marginBottom: 3, color: data[hovered].tf > data[hovered].cf ? "#c8f542" : data[hovered].tf < data[hovered].cf ? "#f54242" : "#42f5c8" }}>{data[hovered].domain}</div>
+          <div style={{ color: "var(--muted)" }}>PR Score: {data[hovered].tf} &nbsp;|&nbsp; Link Vol: {data[hovered].cf}</div>
+          {onDotClick && <div style={{ color: "var(--accent)", marginTop: 4, fontSize: 10 }}>Click to open domain</div>}
         </div>
       )}
     </div>
+  );
+}
+
+function ScatterPlot({ data }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  if (!data || data.length === 0) return null;
+
+  const handleDotClick = (d) => {
+    if (d.domain) window.open(`https://${d.domain.replace(/^https?:\/\//, "")}`, "_blank");
+  };
+
+  return (
+    <>
+      <div style={{ cursor: "pointer", position: "relative" }} onClick={() => setModalOpen(true)}>
+        <ScatterChart data={data} W={240} H={190} PAD={28} onDotClick={null} />
+        <div style={{ position: "absolute", top: 8, right: 8, fontSize: 9, color: "var(--accent)", letterSpacing: 1, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 8px" }}>
+          EXPAND
+        </div>
+      </div>
+
+      {modalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflowY: "auto" }}
+          onClick={() => setModalOpen(false)}>
+          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 32, maxWidth: 1000, width: "100%", boxShadow: "0 24px 80px rgba(0,0,0,0.6)", margin: "auto" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div>
+                <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 3, marginBottom: 4 }}>LINK PROFILE</div>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800 }}>PageRank Score vs Link Volume</div>
+              </div>
+              <button onClick={() => setModalOpen(false)} style={{ background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", padding: "8px 16px", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                CLOSE
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 32, alignItems: "start", overflowX: "auto" }}>
+              <ScatterChart data={data} W={580} H={440} PAD={44} onDotClick={handleDotClick} />
+
+              <div>
+                <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>ALL DOMAINS ({data.length})</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 360, overflowY: "auto" }}>
+                  {[...data].sort((a, b) => b.tf - a.tf).map((d, i) => (
+                    <a key={i} href={`https://${d.domain.replace(/^https?:\/\//, "")}`} target="_blank" rel="noopener noreferrer"
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px",
+                        background: "var(--surface2)", borderRadius: 6, textDecoration: "none",
+                        border: "1px solid transparent", transition: "border-color 0.15s" }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = "var(--accent)"}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = "transparent"}>
+                      <span style={{ fontSize: 11, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{d.domain}</span>
+                      <div style={{ display: "flex", gap: 8, flexShrink: 0, marginLeft: 8 }}>
+                        <span style={{ fontSize: 10, color: d.tf > d.cf ? "#c8f542" : d.tf < d.cf ? "#f54242" : "#42f5c8", fontWeight: 700 }}>PR {d.tf}</span>
+                        <span style={{ fontSize: 10, color: "var(--accent)" }}>{"↗"}</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 16, marginTop: 16, fontSize: 10 }}>
+                  <span style={{ color: "#c8f542" }}>{"● TF > CF"}</span>
+                  <span style={{ color: "#f54242" }}>{"● CF > TF"}</span>
+                  <span style={{ color: "#42f5c8" }}>{"● Balanced"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -209,11 +273,11 @@ function EvaluatorTab() {
         </div>
         <button onClick={evaluate} disabled={loading || !sourceUrl || !targetUrl}
           style={{ width: "100%", padding: "14px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 700, cursor: loading || !sourceUrl || !targetUrl ? "not-allowed" : "pointer", letterSpacing: 1 }}>
-          {loading ? "o RESEARCHING & SCORING..." : "-> RUN EVALUATION"}
+          {loading ? "RESEARCHING & SCORING..." : "RUN EVALUATION"}
         </button>
         {loading && <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Claude is researching both domains (~30s)...</p>}
       </div>
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>{error}</div>}
       {result && (
         <>
           <div style={{ background: "var(--surface2)", border: `1px solid ${recColor(result.final?.recommendation)}`, borderRadius: 16, padding: "28px 32px", animation: "fadeUp 0.4s ease both" }}>
@@ -253,7 +317,7 @@ function EvaluatorTab() {
           </div>
           <PillarCard title="Agentic Value & Traffic Utility" tag="PILLAR 04" score={result.agentic_utility?.score} findings={result.agentic_utility?.findings || {}} summary={result.agentic_utility?.summary} color="#a542f5" delay="0.4s" />
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, color: "var(--muted)", fontSize: 11 }}>
-            <span>SOURCE: {result.source_url}</span><span style={{ margin: "0 12px" }}>-></span><span>TARGET: {result.target_url}</span>
+            <span>SOURCE: {result.source_url}</span><span style={{ margin: "0 12px" }}>{"→"}</span><span>TARGET: {result.target_url}</span>
           </div>
         </>
       )}
@@ -323,13 +387,13 @@ function BacklinkExplorer() {
             onKeyDown={(e) => e.key === "Enter" && url && fetchBacklinks()} />
           <button onClick={fetchBacklinks} disabled={loading || !url}
             style={{ padding: "10px 28px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 700, cursor: loading || !url ? "not-allowed" : "pointer" }}>
-            {loading ? "o" : "-> FETCH"}
+            {loading ? "o" : "FETCH"}
           </button>
         </div>
         {loading && <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12, animation: "pulse 2s infinite" }}>Fetching backlink profile from DataForSEO...</p>}
       </div>
 
-      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>? {error}</div>}
+      {error && <div style={{ background: "#1a0a0a", border: "1px solid var(--danger)", borderRadius: 12, padding: 20, color: "var(--danger)", fontSize: 13 }}>{error}</div>}
 
       {result && s && (
         <>
@@ -348,7 +412,7 @@ function BacklinkExplorer() {
                 {[
                   { label: "PAGE RANK", val: `${s.page_rank ?? "-"} / 10` },
                   { label: "GLOBAL RANK", val: s.global_rank ? `#${s.global_rank.toLocaleString()}` : "-" },
-                  { label: "REF IPs", val: s.referring_ips?.toLocaleString() },
+                  { label: "REF DOMAINS", val: s.referring_domains?.toLocaleString() ?? "-" },
                   { label: "PR SCORE", val: s.pr_score ? `${s.pr_score}/100` : "-" },
                 ].map(({ label, val }) => (
                   <div key={label} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px" }}>
@@ -367,12 +431,15 @@ function BacklinkExplorer() {
               <TopicalTrustFlow topics={s.topics} trustFlow={s.pr_score} />
             </div>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "24px" }}>
-              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 16 }}>LINK PROFILE (TF vs CF)</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2 }}>LINK PROFILE (TF vs CF)</div>
+                <div style={{ fontSize: 9, color: "var(--accent)", letterSpacing: 1 }}>CLICK TO EXPAND</div>
+              </div>
               <ScatterPlot data={s.scatter} />
               <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 10, color: "var(--muted)" }}>
-                <span style={{ color: "#c8f542" }}>? TF &gt; CF</span>
-                <span style={{ color: "#f54242" }}>? CF &gt; TF</span>
-                <span style={{ color: "#42f5c8" }}>? Balanced</span>
+                <span style={{ color: "#c8f542" }}>{"● TF > CF"}</span>
+                <span style={{ color: "#f54242" }}>{"● CF > TF"}</span>
+                <span style={{ color: "#42f5c8" }}>{"● Balanced"}</span>
               </div>
             </div>
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "24px" }}>
@@ -408,7 +475,7 @@ function BacklinkExplorer() {
                       { key: "dofollow", label: "TYPE" }, { key: "first_seen", label: "FIRST SEEN" }
                     ].map(({ key, label }) => (
                       <th key={key} style={thStyle(key)} onClick={() => toggleSort(key)}>
-                        {label} {sortKey === key ? (sortDir === "desc" ? "?" : "?") : ""}
+                        {label} {sortKey === key ? (sortDir === "desc" ? "↓" : "↑") : ""}
                       </th>
                     ))}
                     <th style={{ ...thStyle(""), cursor: "default" }}>LINK</th>
@@ -434,7 +501,7 @@ function BacklinkExplorer() {
                       </td>
                       <td style={{ ...tdStyle, color: "var(--muted)", fontSize: 11 }}>{b.first_seen ? new Date(b.first_seen).toLocaleDateString() : "-"}</td>
                       <td style={tdStyle}>
-                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>> view</a>
+                        <a href={b.url_from} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 11, textDecoration: "none" }}>{"↗ view"}</a>
                       </td>
                     </tr>
                   ))}
@@ -452,6 +519,25 @@ function BacklinkExplorer() {
 // -- Main App ---------------------------------------------------------------
 export default function Home() {
   const [tab, setTab] = useState("evaluator");
+  const [theme, setTheme] = useState("dark");
+  const router = useRouter();
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", next);
+    }
+  };
+
+  const logout = async () => {
+    await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "logout" }),
+    });
+    router.push("/login");
+  };
   const tabStyle = (t) => ({
     padding: "8px 20px",
     background: tab === t ? "var(--accent)" : "transparent",
@@ -470,11 +556,19 @@ export default function Home() {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(28px, 5vw, 48px)", fontWeight: 800, lineHeight: 1.1, marginBottom: 12 }}>
             Link Value <span style={{ color: "var(--accent)" }}>Platform</span>
           </h1>
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation ? Real PageRank data ? Topical analysis ? Link profile</p>
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>AI-powered evaluation · Real PageRank data · Topical analysis · Link profile</p>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-          <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>o Link Evaluator</button>
-          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>> Backlink Explorer</button>
+        <div style={{ display: "flex", gap: 8, marginBottom: 24, alignItems: "center" }}>
+          <button style={tabStyle("evaluator")} onClick={() => setTab("evaluator")}>{"⟳ Link Evaluator"}</button>
+          <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>{"↗ Backlink Explorer"}</button>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button onClick={toggleTheme} style={{ padding: "8px 14px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--muted)", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>
+              {theme === "dark" ? "☀️" : "🌙"}
+            </button>
+            <button onClick={logout} style={{ padding: "8px 16px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--muted)", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: 1 }}>
+              LOGOUT
+            </button>
+          </div>
         </div>
         {tab === "evaluator" ? <EvaluatorTab /> : <BacklinkExplorer />}
       </div>
