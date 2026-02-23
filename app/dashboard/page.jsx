@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 // -- Donut Chart ------------------------------------------------------------
@@ -519,121 +519,256 @@ function BacklinkExplorer() {
 // -- Main App ---------------------------------------------------------------
 // -- Rank Tracker Tab -------------------------------------------------------
 function RankTracker() {
-  const [keyword, setKeyword] = useState("");
-  const [domain, setDomain] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDomain, setNewDomain] = useState("");
+  const [newKw, setNewKw] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [expanded, setExpanded] = useState(null);
 
-  const fetch_ = async () => {
-    setLoading(true); setResult(null); setError(null);
+  useEffect(() => {
     try {
-      // Step 1: Create task
-      const res = await fetch("/api/rank-tracker", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword, domain }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (data.done) { setResult(data); return; }
-
-      // Step 2: Poll for results client-side (avoids Railway 30s timeout)
-      const taskId = data.taskId;
-      for (let i = 0; i < 24; i++) {
-        await new Promise(r => setTimeout(r, 5000));
-        const pollRes = await fetch("/api/rank-tracker", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ keyword, domain, taskId }),
-        });
-        const pollData = await pollRes.json();
-        if (pollData.error) throw new Error(pollData.error);
-        if (pollData.done) { setResult(pollData); return; }
+      const saved = localStorage.getItem("lvp_rank_projects");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setProjects(parsed);
+        if (parsed.length > 0) setActiveId(parsed[0].id);
       }
-      throw new Error("Timed out waiting for results. Please try again.");
-    } catch (e) { setError(e.message); } finally { setLoading(false); }
+    } catch(e) {}
+  }, []);
+
+  const save = (updated) => {
+    setProjects(updated);
+    try { localStorage.setItem("lvp_rank_projects", JSON.stringify(updated)); } catch(e) {}
   };
 
-  const positionColor = (pos) => {
-    if (!pos) return "var(--muted)";
-    if (pos <= 3) return "#00ff88";
-    if (pos <= 10) return "var(--accent)";
-    if (pos <= 30) return "#f0a500";
-    return "#ff4444";
+  const active = projects.find(p => p.id === activeId);
+
+  const createProject = () => {
+    if (!newName || !newDomain) return;
+    const p = { id: Date.now().toString(), name: newName, domain: newDomain.replace(/^https?:\/\//, "").replace(/\/$/, ""), keywords: [], runs: [] };
+    const updated = [...projects, p];
+    save(updated);
+    setActiveId(p.id);
+    setNewName(""); setNewDomain(""); setShowNew(false);
+  };
+
+  const deleteProject = () => {
+    const updated = projects.filter(p => p.id !== activeId);
+    save(updated);
+    setActiveId(updated[0]?.id || null);
+  };
+
+  const addKeyword = () => {
+    if (!newKw || !active) return;
+    const kw = { id: Date.now().toString(), keyword: newKw, city: newCity };
+    save(projects.map(p => p.id === activeId ? { ...p, keywords: [...p.keywords, kw] } : p));
+    setNewKw(""); setNewCity("");
+  };
+
+  const removeKeyword = (kwId) => {
+    save(projects.map(p => p.id === activeId ? { ...p, keywords: p.keywords.filter(k => k.id !== kwId) } : p));
+  };
+
+  const checkOne = async (keyword, city, domain) => {
+    const fullKw = city ? `${keyword} ${city}` : keyword;
+    const res = await fetch("/api/rank-tracker", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword: fullKw, domain }) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.done) return data.position;
+    const taskId = data.taskId;
+    for (let i = 0; i < 24; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      const poll = await fetch("/api/rank-tracker", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword: fullKw, domain, taskId }) });
+      const pd = await poll.json();
+      if (pd.error) throw new Error(pd.error);
+      if (pd.done) return pd.position;
+    }
+    return null;
+  };
+
+  const runAll = async () => {
+    if (!active || running) return;
+    setRunning(true);
+    const results = {};
+    for (let i = 0; i < active.keywords.length; i++) {
+      const kw = active.keywords[i];
+      setProgress({ current: i + 1, total: active.keywords.length, keyword: kw.keyword });
+      try { results[kw.id] = { position: await checkOne(kw.keyword, kw.city, active.domain) }; }
+      catch(e) { results[kw.id] = { position: null }; }
+    }
+    const run = { date: new Date().toISOString(), results };
+    save(projects.map(p => p.id === activeId ? { ...p, runs: [...p.runs, run] } : p));
+    setRunning(false); setProgress(null);
+  };
+
+  const latestPos = (kwId) => active?.runs?.length ? active.runs[active.runs.length - 1]?.results?.[kwId]?.position : null;
+  const prevPos = (kwId) => active?.runs?.length >= 2 ? active.runs[active.runs.length - 2]?.results?.[kwId]?.position : null;
+  const history = (kwId) => (active?.runs || []).map(r => ({ date: r.date, position: r.results?.[kwId]?.position ?? null }));
+
+  const posColor = (pos) => !pos ? "var(--muted)" : pos <= 3 ? "#00ff88" : pos <= 10 ? "var(--accent)" : pos <= 30 ? "#f0a500" : "#ff4444";
+
+  const ChangeBadge = ({ curr, prev }) => {
+    if (!curr || !prev) return null;
+    const diff = prev - curr;
+    if (diff === 0) return <span style={{ color: "var(--muted)", fontSize: 12 }}>{"~"}</span>;
+    if (diff > 0) return <span style={{ color: "#00ff88", fontSize: 12, fontWeight: 700 }}>{`+${diff}`}</span>;
+    return <span style={{ color: "#ff4444", fontSize: 12, fontWeight: 700 }}>{`${diff}`}</span>;
+  };
+
+  const Sparkline = ({ hist }) => {
+    const pts = hist.map(h => h.position).filter(Boolean);
+    if (pts.length < 2) return <span style={{ color: "var(--muted)", fontSize: 10 }}>{"--"}</span>;
+    const w = 80, h = 28;
+    const max = Math.max(...pts), min = Math.min(...pts), range = max - min || 1;
+    const coords = pts.map((p, i) => `${(i / (pts.length - 1)) * w},${(p - min) / range * h}`).join(" ");
+    const improving = pts[pts.length - 1] <= pts[0];
+    return <svg width={w} height={h}><polyline points={coords} fill="none" stroke={improving ? "#00ff88" : "#ff4444"} strokeWidth={1.5} /></svg>;
+  };
+
+  const HistoryChart = ({ hist }) => {
+    const valid = hist.filter(r => r.position !== null);
+    if (valid.length < 2) return <div style={{ color: "var(--muted)", fontSize: 12, padding: 12 }}>{"Run at least 2 checks to see history."}</div>;
+    const svgW = 520, svgH = 180, pad = 36;
+    const positions = valid.map(r => r.position);
+    const maxP = Math.max(...positions), minP = Math.min(...positions), range = maxP - minP || 1;
+    const pts = valid.map((r, i) => ({
+      x: pad + (i / (valid.length - 1)) * (svgW - pad * 2),
+      y: pad + ((r.position - minP) / range) * (svgH - pad * 2),
+      pos: r.position,
+      date: r.date,
+    }));
+    const improving = positions[positions.length - 1] <= positions[0];
+    const lineColor = improving ? "#00ff88" : "var(--accent)";
+    return (
+      <svg width={svgW} height={svgH} style={{ overflow: "visible" }}>
+        {[0, 0.5, 1].map((t, i) => {
+          const y = pad + t * (svgH - pad * 2);
+          return <g key={i}><line x1={pad} y1={y} x2={svgW - pad} y2={y} stroke="var(--border)" strokeWidth={0.5} /><text x={pad - 8} y={y + 4} fontSize={9} fill="var(--muted)" textAnchor="end">{`#${Math.round(minP + t * range)}`}</text></g>;
+        })}
+        <polyline points={pts.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke={lineColor} strokeWidth={2} />
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={4} fill={lineColor} />
+            <text x={p.x} y={svgH - 4} fontSize={8} fill="var(--muted)" textAnchor="middle">{new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</text>
+          </g>
+        ))}
+      </svg>
+    );
   };
 
   const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
+  const inp = { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 12px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 12, outline: "none", width: "100%" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Project bar */}
       <div style={card}>
-        <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"RANK TRACKER"}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "end" }}>
-          <div>
-            <label style={{ display: "block", fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>{"KEYWORD"}</label>
-            <input value={keyword} onChange={e => setKeyword(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && keyword && domain && fetch_()}
-              placeholder="e.g. landscaping minneapolis"
-              style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none" }} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>{"DOMAIN"}</label>
-            <input value={domain} onChange={e => setDomain(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && keyword && domain && fetch_()}
-              placeholder="e.g. yoursite.com"
-              style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none" }} />
-          </div>
-          <button onClick={fetch_} disabled={loading || !keyword || !domain}
-            style={{ padding: "10px 24px", background: loading ? "var(--surface2)" : "var(--accent)", color: loading ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 13, fontWeight: 700, cursor: loading || !keyword || !domain ? "not-allowed" : "pointer", letterSpacing: 1, whiteSpace: "nowrap" }}>
-            {loading ? "CHECKING..." : "CHECK RANK"}
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3 }}>{"PROJECT"}</span>
+          {projects.map(p => (
+            <button key={p.id} onClick={() => setActiveId(p.id)} style={{ padding: "6px 14px", background: p.id === activeId ? "var(--accent)" : "var(--bg)", color: p.id === activeId ? "#000" : "var(--text)", border: "1px solid var(--border)", borderRadius: 6, fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {p.name}
+            </button>
+          ))}
+          <button onClick={() => setShowNew(!showNew)} style={{ padding: "6px 14px", background: "transparent", color: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 6, fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{"+ NEW"}</button>
+          {active && <button onClick={deleteProject} style={{ padding: "6px 14px", background: "transparent", color: "#ff4444", border: "1px solid #ff4444", borderRadius: 6, fontFamily: "var(--font-display)", fontSize: 12, cursor: "pointer" }}>{"DELETE"}</button>}
         </div>
+        {showNew && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, marginTop: 14 }}>
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Client name (e.g. JR Copier)" style={inp} />
+            <input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="Domain (e.g. jrcopiermn.com)" style={inp} />
+            <button onClick={createProject} style={{ padding: "8px 20px", background: "var(--accent)", color: "#000", border: "none", borderRadius: 6, fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{"CREATE"}</button>
+          </div>
+        )}
       </div>
 
-      {error && <div style={{ ...card, border: "1px solid var(--danger)", color: "var(--danger)", fontSize: 13 }}>{error}</div>}
-
-      {result && (
+      {active && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-            <div style={{ ...card, textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>{"GOOGLE POSITION"}</div>
-              <div style={{ fontSize: 64, fontFamily: "var(--font-display)", fontWeight: 900, color: positionColor(result.position), lineHeight: 1 }}>
-                {result.position ? `#${result.position}` : "N/A"}
+          {/* Add keyword */}
+          <div style={card}>
+            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 12 }}>{`KEYWORDS — ${active.domain}`}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, marginBottom: 14 }}>
+              <input value={newKw} onChange={e => setNewKw(e.target.value)} onKeyDown={e => e.key === "Enter" && addKeyword()} placeholder="Keyword (e.g. copier lease)" style={inp} />
+              <input value={newCity} onChange={e => setNewCity(e.target.value)} onKeyDown={e => e.key === "Enter" && addKeyword()} placeholder="City (e.g. Maple Grove MN)" style={inp} />
+              <button onClick={addKeyword} disabled={!newKw} style={{ padding: "8px 20px", background: "var(--accent)", color: "#000", border: "none", borderRadius: 6, fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{"ADD"}</button>
+            </div>
+            {active.keywords.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {active.keywords.map(kw => (
+                  <div key={kw.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 4px 12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 20, fontSize: 11 }}>
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>{kw.keyword}</span>
+                    {kw.city && <span style={{ color: "var(--muted)" }}>{`· ${kw.city}`}</span>}
+                    <button onClick={() => removeKeyword(kw.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 0 0 4px" }}>{"x"}</button>
+                  </div>
+                ))}
               </div>
-              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-                {result.position ? (result.position <= 10 ? "First page!" : result.position <= 30 ? "Page 2-3" : "Beyond page 3") : "Not in top 100"}
-              </div>
-            </div>
-            <div style={{ ...card, textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>{"KEYWORD"}</div>
-              <div style={{ fontSize: 20, fontFamily: "var(--font-display)", fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>{result.keyword}</div>
-            </div>
-            <div style={{ ...card, textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 12 }}>{"DOMAIN"}</div>
-              <div style={{ fontSize: 16, fontFamily: "var(--font-mono)", color: "var(--accent)" }}>{result.domain}</div>
-              {result.matchedItem && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{result.matchedItem.title}</div>}
-            </div>
+            )}
           </div>
 
-          <div style={card}>
-            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>{"TOP 50 RESULTS"}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {result.top10.map((item, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: item.isTarget ? "rgba(180,255,0,0.08)" : "var(--bg)", border: "1px solid " + (item.isTarget ? "var(--accent)" : "var(--border)"), borderRadius: 8 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: item.isTarget ? "var(--accent)" : "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: item.isTarget ? "#000" : "var(--muted)", flexShrink: 0 }}>
-                    {item.position}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, color: item.isTarget ? "var(--accent)" : "var(--text)", fontWeight: item.isTarget ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.domain}</div>
-                  </div>
-                  <a href={item.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", flexShrink: 0 }}>{"↗"}</a>
-                </div>
-              ))}
-            </div>
+          {/* Run controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <button onClick={runAll} disabled={running || active.keywords.length === 0}
+              style={{ padding: "12px 32px", background: running ? "var(--surface)" : "var(--accent)", color: running ? "var(--muted)" : "#000", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 900, cursor: running ? "not-allowed" : "pointer", letterSpacing: 2 }}>
+              {running ? "RUNNING..." : "RUN ALL"}
+            </button>
+            {progress && <span style={{ fontSize: 12, color: "var(--muted)", fontFamily: "var(--font-mono)" }}>{`${progress.current}/${progress.total} — ${progress.keyword}`}</span>}
+            {active.runs.length > 0 && !running && (
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>{`Last run: ${new Date(active.runs[active.runs.length - 1].date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}</span>
+            )}
           </div>
+
+          {/* Rankings table */}
+          {active.keywords.length > 0 && (
+            <div style={card}>
+              <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 14 }}>{"RANKINGS — click a row to see history chart"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "12px 1fr 60px 60px 60px 90px", gap: 8, padding: "4px 12px", fontSize: 9, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>
+                <span /><span>{"KEYWORD + CITY"}</span><span style={{ textAlign: "center" }}>{"RANK"}</span><span style={{ textAlign: "center" }}>{"PREV"}</span><span style={{ textAlign: "center" }}>{"CHANGE"}</span><span style={{ textAlign: "center" }}>{"TREND"}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {active.keywords.map(kw => {
+                  const curr = latestPos(kw.id);
+                  const prev = prevPos(kw.id);
+                  const hist = history(kw.id);
+                  const isExpanded = expanded === kw.id;
+                  return (
+                    <div key={kw.id}>
+                      <div onClick={() => setExpanded(isExpanded ? null : kw.id)} style={{ display: "grid", gridTemplateColumns: "12px 1fr 60px 60px 60px 90px", gap: 8, padding: "10px 12px", background: isExpanded ? "rgba(180,255,0,0.06)" : "var(--bg)", border: `1px solid ${isExpanded ? "var(--accent)" : "var(--border)"}`, borderRadius: isExpanded ? "8px 8px 0 0" : 8, cursor: "pointer", alignItems: "center" }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: curr ? posColor(curr) : "var(--border)" }} />
+                        <div>
+                          <div style={{ fontSize: 13, color: "var(--text)", fontFamily: "var(--font-mono)" }}>{kw.keyword}</div>
+                          {kw.city && <div style={{ fontSize: 10, color: "var(--muted)" }}>{kw.city}</div>}
+                        </div>
+                        <div style={{ textAlign: "center", fontSize: 22, fontFamily: "var(--font-display)", fontWeight: 900, color: posColor(curr) }}>{curr ? `#${curr}` : "—"}</div>
+                        <div style={{ textAlign: "center", fontSize: 13, color: "var(--muted)" }}>{prev ? `#${prev}` : "—"}</div>
+                        <div style={{ textAlign: "center" }}><ChangeBadge curr={curr} prev={prev} /></div>
+                        <div style={{ display: "flex", justifyContent: "center" }}><Sparkline hist={hist} /></div>
+                      </div>
+                      {isExpanded && (
+                        <div style={{ padding: 20, background: "var(--bg)", border: "1px solid var(--accent)", borderTop: "none", borderRadius: "0 0 8px 8px" }}>
+                          <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 2, marginBottom: 12 }}>{"RANK OVER TIME"}</div>
+                          <div style={{ overflowX: "auto" }}><HistoryChart hist={hist} /></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {active.keywords.length === 0 && (
+            <div style={{ ...card, textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 40 }}>{"Add keywords above, then click RUN ALL to start tracking"}</div>
+          )}
         </>
+      )}
+
+      {projects.length === 0 && (
+        <div style={{ ...card, textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 40 }}>{"Create a project above to start tracking keyword rankings"}</div>
       )}
     </div>
   );
@@ -790,6 +925,314 @@ function CompetitorGap() {
   );
 }
 
+// -- Projects Tab -----------------------------------------------------
+function Projects() {
+  const [projects, setProjects] = useState([]);
+  const [view, setView] = useState("list"); // list | edit | detail
+  const [editing, setEditing] = useState(null);
+  const [active, setActive] = useState(null);
+  const [runs, setRuns] = useState([]);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState([]);
+  const [checks, setChecks] = useState({ rankings: true, backlinks: true, competitors: true });
+
+  const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
+  const input = { width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none", boxSizing: "border-box" };
+  const btn = (color = "var(--accent)") => ({ padding: "10px 20px", background: color, color: color === "var(--accent)" ? "#000" : "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: 1 });
+
+  useEffect(() => { loadProjects(); }, []);
+
+  async function loadProjects() {
+    const res = await fetch("/api/projects");
+    const data = await res.json();
+    setProjects(data.projects || []);
+  }
+
+  async function saveProject() {
+    const res = await fetch("/api/projects", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "save", project: editing }),
+    });
+    const data = await res.json();
+    await loadProjects();
+    openDetail(data.project);
+  }
+
+  async function deleteProject(id) {
+    if (!confirm("Delete this project and all its history?")) return;
+    await fetch("/api/projects", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", id }),
+    });
+    await loadProjects();
+    setView("list");
+  }
+
+  async function openDetail(p) {
+    setActive(p);
+    setView("detail");
+    setProgress([]);
+    const res = await fetch("/api/projects", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "getRuns", id: p.id }),
+    });
+    const data = await res.json();
+    setRuns(data.runs || []);
+  }
+
+  async function runProject() {
+    if (!active) return;
+    setRunning(true);
+    setProgress([]);
+    const log = (msg, status = "pending") => setProgress(p => [...p, { msg, status, time: new Date().toLocaleTimeString() }]);
+
+    const run = { date: new Date().toISOString(), rankings: {}, backlinks: null, competitorBacklinks: null, opportunities: [] };
+
+    // Rankings
+    if (checks.rankings && active.keywords?.length) {
+      log(`Checking ${active.keywords.length} keywords...`);
+      for (const kw of active.keywords) {
+        const fullKw = active.city ? `${kw} ${active.city}` : kw;
+        log(`  Ranking: "${fullKw}"`);
+        try {
+          // Post task
+          const r1 = await fetch("/api/rank-tracker", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ keyword: fullKw, domain: active.domain }),
+          });
+          const d1 = await r1.json();
+          if (d1.error) { log(`  ✗ ${kw}: ${d1.error}`, "error"); run.rankings[kw] = null; continue; }
+          if (d1.done) { run.rankings[kw] = d1.position; log(`  ✓ ${kw}: #${d1.position || "N/A"}`, "done"); continue; }
+
+          // Poll
+          let pos = null;
+          for (let i = 0; i < 24; i++) {
+            await new Promise(r => setTimeout(r, 5000));
+            const r2 = await fetch("/api/rank-tracker", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ keyword: fullKw, domain: active.domain, taskId: d1.taskId }),
+            });
+            const d2 = await r2.json();
+            if (d2.done) { pos = d2.position; break; }
+          }
+          run.rankings[kw] = pos;
+          log(`  ✓ ${kw}: ${pos ? "#" + pos : "N/A"}`, "done");
+        } catch (e) {
+          log(`  ✗ ${kw}: ${e.message}`, "error");
+          run.rankings[kw] = null;
+        }
+      }
+    }
+
+    // Backlinks + Competitor
+    if (checks.backlinks || checks.competitors) {
+      log("Fetching backlink & competitor data...");
+      try {
+        const res = await fetch("/api/projects/run", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: active.domain, competitor: checks.competitors ? active.competitor : null }),
+        });
+        const data = await res.json();
+        if (checks.backlinks) { run.backlinks = data.backlinks; log(`  ✓ Backlinks: ${data.backlinks?.referring_domains ?? "?"} ref domains`, "done"); }
+        if (checks.competitors && active.competitor) { run.competitorBacklinks = data.competitorBacklinks; run.opportunities = data.opportunities; log(`  ✓ Competitor gap: ${data.opportunities?.length ?? 0} opportunities`, "done"); }
+      } catch (e) { log(`  ✗ ${e.message}`, "error"); }
+    }
+
+    // Save run
+    await fetch("/api/projects", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "saveRun", id: active.id, run }),
+    });
+    const runsRes = await fetch("/api/projects", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "getRuns", id: active.id }),
+    });
+    const runsData = await runsRes.json();
+    setRuns(runsData.runs || []);
+    log("Run complete!", "done");
+    setRunning(false);
+  }
+
+  function rankDelta(kw, runIndex) {
+    const current = runs[runIndex]?.rankings?.[kw];
+    const prev = runs[runIndex + 1]?.rankings?.[kw];
+    if (!current || !prev) return null;
+    const delta = prev - current;
+    if (delta > 0) return { label: `↑${delta}`, color: "#00ff88" };
+    if (delta < 0) return { label: `↓${Math.abs(delta)}`, color: "#ff4444" };
+    return { label: "–", color: "var(--muted)" };
+  }
+
+  // LIST VIEW
+  if (view === "list") return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3 }}>PROJECTS</div>
+        <button style={btn()} onClick={() => { setEditing({ name: "", domain: "", city: "", keywords: [], competitor: "" }); setView("edit"); }}>+ NEW PROJECT</button>
+      </div>
+      {projects.length === 0 && <div style={{ ...card, color: "var(--muted)", textAlign: "center", padding: 48 }}>No projects yet. Create one to start tracking.</div>}
+      {projects.map(p => (
+        <div key={p.id} style={{ ...card, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }} onClick={() => openDetail(p)}>
+          <div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--accent)" }}>{p.domain}</div>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{p.keywords?.length || 0} keywords · {p.city || "No city"}{p.competitor ? ` · vs ${p.competitor}` : ""}</div>
+          </div>
+          <div style={{ fontSize: 20, color: "var(--muted)" }}>{"›"}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // EDIT VIEW
+  if (view === "edit") return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <button style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)" }} onClick={() => setView(active ? "detail" : "list")}>{"‹ Back"}</button>
+        <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3 }}>{editing?.id ? "EDIT PROJECT" : "NEW PROJECT"}</div>
+      </div>
+      <div style={card}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {[["PROJECT NAME", "name", "e.g. JR Copier"], ["DOMAIN", "domain", "e.g. jrcopiermn.com"], ["CITY", "city", "e.g. Maple Grove MN"], ["COMPETITOR DOMAIN", "competitor", "e.g. competitorsite.com"]].map(([label, field, ph]) => (
+            <div key={field}>
+              <label style={{ display: "block", fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>{label}</label>
+              <input value={editing?.[field] || ""} onChange={e => setEditing(x => ({ ...x, [field]: e.target.value }))} placeholder={ph} style={input} />
+            </div>
+          ))}
+          <div>
+            <label style={{ display: "block", fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>KEYWORDS (one per line)</label>
+            <textarea
+              value={(editing?.keywords || []).join("\n")}
+              onChange={e => setEditing(x => ({ ...x, keywords: e.target.value.split("\n").map(k => k.trim()).filter(Boolean) }))}
+              placeholder={"copier lease\nprinter repair\noffice equipment rental"}
+              rows={8}
+              style={{ ...input, resize: "vertical", lineHeight: 1.6 }}
+            />
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{editing?.keywords?.length || 0} keywords — city will be appended automatically when checking ranks</div>
+          </div>
+          <button style={btn()} onClick={saveProject}>SAVE PROJECT</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // DETAIL VIEW
+  if (view === "detail" && active) return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <button style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)" }} onClick={() => setView("list")}>{"‹ Projects"}</button>
+        <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, flex: 1 }}>{active.name}</div>
+        <button style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)" }} onClick={() => { setEditing({ ...active }); setView("edit"); }}>EDIT</button>
+        <button style={{ ...btn("#ff4444") }} onClick={() => deleteProject(active.id)}>DELETE</button>
+      </div>
+
+      {/* Project info */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        {[["DOMAIN", active.domain], ["CITY", active.city || "—"], ["KEYWORDS", `${active.keywords?.length || 0} tracked`], ["COMPETITOR", active.competitor || "—"]].map(([l, v]) => (
+          <div key={l} style={{ ...card, padding: 16 }}>
+            <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 6 }}>{l}</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--accent)" }}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Run panel */}
+      <div style={card}>
+        <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>RUN CHECKS</div>
+        <div style={{ display: "flex", gap: 24, marginBottom: 16, flexWrap: "wrap" }}>
+          {[["rankings", "Keyword Rankings"], ["backlinks", "Backlink Metrics"], ["competitors", "Competitor Gap"]].map(([k, label]) => (
+            <label key={k} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--text)" }}>
+              <input type="checkbox" checked={checks[k]} onChange={e => setChecks(x => ({ ...x, [k]: e.target.checked }))}
+                style={{ accentColor: "var(--accent)", width: 16, height: 16 }} />
+              {label}
+            </label>
+          ))}
+        </div>
+        <button style={{ ...btn(), opacity: running ? 0.6 : 1 }} onClick={runProject} disabled={running}>
+          {running ? "RUNNING..." : "▶ RUN NOW"}
+        </button>
+      </div>
+
+      {/* Progress log */}
+      {progress.length > 0 && (
+        <div style={{ ...card, fontFamily: "var(--font-mono)", fontSize: 12 }}>
+          <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 12 }}>PROGRESS</div>
+          {progress.map((p, i) => (
+            <div key={i} style={{ color: p.status === "error" ? "#ff4444" : p.status === "done" ? "#00ff88" : "var(--muted)", marginBottom: 4 }}>{p.msg}</div>
+          ))}
+          {running && <div style={{ color: "var(--muted)", marginTop: 8, animation: "pulse 1s infinite" }}>{"..."}</div>}
+        </div>
+      )}
+
+      {/* History table */}
+      {runs.length > 0 && (
+        <div style={card}>
+          <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>RANKING HISTORY</div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>KEYWORD</th>
+                  {runs.slice(0, 6).map((r, i) => (
+                    <th key={i} style={{ textAlign: "center", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", minWidth: 90 }}>
+                      {new Date(r.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(active.keywords || []).map(kw => (
+                  <tr key={kw} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ padding: "10px 12px", color: "var(--text)" }}>{kw}</td>
+                    {runs.slice(0, 6).map((r, i) => {
+                      const pos = r.rankings?.[kw];
+                      const delta = rankDelta(kw, i);
+                      const color = !pos ? "var(--muted)" : pos <= 3 ? "#00ff88" : pos <= 10 ? "var(--accent)" : pos <= 30 ? "#f0a500" : "#ff4444";
+                      return (
+                        <td key={i} style={{ textAlign: "center", padding: "10px 12px" }}>
+                          <span style={{ color, fontWeight: 700 }}>{pos ? `#${pos}` : "—"}</span>
+                          {delta && <span style={{ color: delta.color, fontSize: 10, marginLeft: 4 }}>{delta.label}</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                {/* Backlinks row */}
+                {runs.some(r => r.backlinks) && (
+                  <tr style={{ borderTop: "2px solid var(--border)" }}>
+                    <td style={{ padding: "10px 12px", color: "var(--muted)", fontSize: 11 }}>REF DOMAINS</td>
+                    {runs.slice(0, 6).map((r, i) => (
+                      <td key={i} style={{ textAlign: "center", padding: "10px 12px", color: "var(--accent)" }}>
+                        {r.backlinks?.referring_domains?.toLocaleString() ?? "—"}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+                {runs.some(r => r.backlinks) && (
+                  <tr>
+                    <td style={{ padding: "10px 12px", color: "var(--muted)", fontSize: 11 }}>BACKLINKS</td>
+                    {runs.slice(0, 6).map((r, i) => (
+                      <td key={i} style={{ textAlign: "center", padding: "10px 12px", color: "var(--muted)" }}>
+                        {r.backlinks?.backlinks?.toLocaleString() ?? "—"}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {runs.length === 0 && progress.length === 0 && (
+        <div style={{ ...card, color: "var(--muted)", textAlign: "center", padding: 48 }}>No runs yet. Hit Run Now to start tracking.</div>
+      )}
+    </div>
+  );
+
+  return null;
+}
+
 export default function Home() {
   const [tab, setTab] = useState("evaluator");
   const [theme, setTheme] = useState("dark");
@@ -836,6 +1279,7 @@ export default function Home() {
           <button style={tabStyle("explorer")} onClick={() => setTab("explorer")}>{"↗ Backlink Explorer"}</button>
           <button style={tabStyle("rank")} onClick={() => setTab("rank")}>{"◎ Rank Tracker"}</button>
           <button style={tabStyle("gap")} onClick={() => setTab("gap")}>{"⊕ Competitor Gap"}</button>
+          <button style={tabStyle("projects")} onClick={() => setTab("projects")}>{"▣ Projects"}</button>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button onClick={toggleTheme} style={{ padding: "8px 14px", background: "transparent", border: "1px solid var(--border)", borderRadius: 6, color: "var(--muted)", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>
               {theme === "dark" ? "☀️" : "🌙"}
@@ -845,7 +1289,7 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {tab === "evaluator" ? <EvaluatorTab /> : tab === "explorer" ? <BacklinkExplorer /> : tab === "rank" ? <RankTracker /> : <CompetitorGap />}
+        {tab === "evaluator" ? <EvaluatorTab /> : tab === "explorer" ? <BacklinkExplorer /> : tab === "rank" ? <RankTracker /> : tab === "gap" ? <CompetitorGap /> : <Projects />}
       </div>
     </>
   );
