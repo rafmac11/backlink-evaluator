@@ -1065,7 +1065,11 @@ function Projects() {
           body: JSON.stringify({ domain: active.domain, competitor: checks.competitors ? active.competitor : null }),
         });
         const data = await res.json();
-        if (checks.backlinks) { run.backlinks = data.backlinks; log(`  ✓ Backlinks: ${data.backlinks?.referring_domains ?? "?"} ref domains`, "done"); }
+        if (checks.backlinks) { 
+          run.backlinks = data.backlinks; 
+          if (data.backlinkError) log(`  ✗ Backlinks error: ${data.backlinkError}`, "error");
+          else log(`  ✓ Backlinks: ${data.backlinks?.referring_domains?.toLocaleString()} ref domains · ${data.backlinks?.backlinks?.toLocaleString()} total links`, "done"); 
+        }
         if (checks.competitors && active.competitor) { run.competitorBacklinks = data.competitorBacklinks; run.opportunities = data.opportunities; log(`  ✓ Competitor gap: ${data.opportunities?.length ?? 0} opportunities`, "done"); }
       } catch (e) { log(`  ✗ ${e.message}`, "error"); }
     }
@@ -1192,6 +1196,38 @@ function Projects() {
           {running && <div style={{ color: "var(--muted)", marginTop: 8, animation: "pulse 1s infinite" }}>{"..."}</div>}
         </div>
       )}
+
+      {/* Backlinks summary card */}
+      {runs.length > 0 && runs[0].backlinks && (() => {
+        const bl = runs[0].backlinks;
+        const prev = runs[1]?.backlinks;
+        const delta = (curr, p) => {
+          if (!p || !curr) return null;
+          const d = curr - p;
+          return d > 0 ? { label: `+${d.toLocaleString()}`, color: "#00ff88" } : d < 0 ? { label: d.toLocaleString(), color: "#ff4444" } : null;
+        };
+        return (
+          <div style={card}>
+            <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 16 }}>BACKLINK METRICS — LATEST RUN</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+              {[
+                ["REF DOMAINS", bl.referring_domains, delta(bl.referring_domains, prev?.referring_domains)],
+                ["TOTAL BACKLINKS", bl.backlinks, delta(bl.backlinks, prev?.backlinks)],
+                ["DOFOLLOW", bl.dofollow_backlinks, null],
+                ["DOMAIN RANK", bl.rank, delta(bl.rank, prev?.rank)],
+              ].map(([label, val, d]) => (
+                <div key={label} style={{ background: "var(--bg)", borderRadius: 8, padding: "14px 16px", border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 8 }}>{label}</div>
+                  <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, color: "var(--accent)" }}>
+                    {val?.toLocaleString() ?? "—"}
+                  </div>
+                  {d && <div style={{ fontSize: 11, color: d.color, marginTop: 4 }}>{d.label} vs prev run</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* History table + chart */}
       {runs.length > 0 && (() => {

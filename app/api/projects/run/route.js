@@ -16,12 +16,16 @@ export async function POST(req) {
     });
     const blData = await blRes.json();
     const bl = blData?.tasks?.[0]?.result?.[0];
+    const blStatus = blData?.tasks?.[0]?.status_code;
+    const blMsg = blData?.tasks?.[0]?.status_message;
     const backlinks = bl ? {
       backlinks: bl.backlinks ?? 0,
       referring_domains: bl.referring_domains ?? 0,
       rank: bl.rank ?? 0,
-      dofollow: bl.backlinks_spam_score ?? 0,
+      dofollow_backlinks: bl.dofollow ?? 0,
+      nofollow_backlinks: bl.nofollow ?? 0,
     } : null;
+    const backlinkError = !bl ? `status ${blStatus}: ${blMsg} (target: ${cleanDomain})` : null;
 
     // Fetch competitor backlinks if provided
     let competitorBacklinks = null;
@@ -56,7 +60,7 @@ export async function POST(req) {
       opportunities = items.map(i => ({ domain: i.domain, rank: i.rank }));
     }
 
-    return Response.json({ backlinks, competitorBacklinks, opportunities });
+    return Response.json({ backlinks, backlinkError, competitorBacklinks, opportunities });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }
