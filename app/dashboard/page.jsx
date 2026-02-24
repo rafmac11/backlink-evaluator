@@ -944,6 +944,7 @@ function Projects() {
   const [gscSites, setGscSites] = useState([]);
   const [gscView, setGscView] = useState("queries"); // queries | pages | trend
   const [gscDays, setGscDays] = useState(30);
+  const [gscHovered, setGscHovered] = useState(null);
 
   const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
   const input = { width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none", boxSizing: "border-box" };
@@ -1421,7 +1422,8 @@ function Projects() {
                   const rows = gscData.dailyTrend || [];
                   if (rows.length < 2) return <div style={{ color: "var(--muted)", padding: 20 }}>No trend data available.</div>;
 
-                  const [hovered, setHovered] = useState(null);
+                  const hovered = gscHovered;
+                  const setHovered = setGscHovered;
                   const W = 700, H = 160, PAD_L = 45, PAD_R = 20, PAD_T = 20, PAD_B = 30;
                   const chartW = W - PAD_L - PAD_R;
                   const chartH = H - PAD_T - PAD_B;
