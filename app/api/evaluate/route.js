@@ -89,7 +89,7 @@ export async function POST(req) {
     }
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5",
       max_tokens: 4000,
       tools: [{ type: "web_search_20250305", name: "web_search" }],
       system: SYSTEM_PROMPT,
@@ -99,8 +99,18 @@ export async function POST(req) {
     // Extract the final text block (after tool use)
     const textBlock = response.content.filter((b) => b.type === "text").pop();
 
-    if (!textBlock) {
-      return Response.json({ error: "No response from Claude." }, { status: 500 });
+    if (!textBlock || !textBlock.text.trim()) {
+      // If no text block, Claude may have stopped after tool use — retry without tools
+      const retry = await client.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 4000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: buildPrompt(sourceUrl, targetUrl) }],
+      });
+      const retryText = retry.content.filter((b) => b.type === "text").pop();
+      if (!retryText) return Response.json({ error: "No response from Claude." }, { status: 500 });
+      const raw = retryText.text.replace(/```json|```/g, "").trim();
+      return Response.json(JSON.parse(raw));
     }
 
     // Strip any accidental markdown fences
