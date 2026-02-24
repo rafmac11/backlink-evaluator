@@ -1332,7 +1332,7 @@ function Projects() {
               {active.gscSiteUrl && (
                 <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
                   <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, alignSelf: "center", marginRight: 4 }}>DATE RANGE</div>
-                  {[["30d", 30], ["90d", 90], ["6mo", 180], ["1yr", 365]].map(([label, d]) => (
+                  {[["7d", 7], ["30d", 30], ["60d", 60], ["90d", 90], ["6mo", 180], ["1yr", 365]].map(([label, d]) => (
                     <button key={d} onClick={() => { setGscDays(d); fetchGscData(active.id, active.gscSiteUrl, d); }}
                       style={{ padding: "5px 12px", background: gscDays === d ? "var(--accent)" : "transparent", color: gscDays === d ? "#000" : "var(--muted)", border: "1px solid " + (gscDays === d ? "var(--accent)" : "var(--border)"), borderRadius: 6, fontFamily: "var(--font-mono)", fontSize: 11, cursor: "pointer", fontWeight: gscDays === d ? 700 : 400 }}>
                       {label}
@@ -1420,39 +1420,111 @@ function Projects() {
                 {gscView === "trend" && (() => {
                   const rows = gscData.dailyTrend || [];
                   if (rows.length < 2) return <div style={{ color: "var(--muted)", padding: 20 }}>No trend data available.</div>;
+
+                  const [hovered, setHovered] = useState(null);
+                  const W = 700, H = 160, PAD_L = 45, PAD_R = 20, PAD_T = 20, PAD_B = 30;
+                  const chartW = W - PAD_L - PAD_R;
+                  const chartH = H - PAD_T - PAD_B;
+
                   const maxClicks = Math.max(...rows.map(r => r.clicks), 1);
-                  const W = 600, H = 120, PAD = 30;
+                  const minClicks = 0;
+                  const yLabels = [0, Math.round(maxClicks * 0.5), maxClicks];
+
                   const pts = rows.map((r, i) => ({
-                    x: PAD + (i / (rows.length - 1)) * (W - PAD * 2),
-                    y: PAD + (1 - r.clicks / maxClicks) * (H - PAD),
-                    clicks: r.clicks, date: r.date,
+                    x: PAD_L + (i / (rows.length - 1)) * chartW,
+                    y: PAD_T + (1 - (r.clicks - minClicks) / (maxClicks - minClicks)) * chartH,
+                    ...r,
+                    idx: i,
                   }));
-                  const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
-                  const areaD = `${pathD} L${pts[pts.length-1].x},${H} L${pts[0].x},${H} Z`;
+
+                  const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+                  const areaD = `${pathD} L${pts[pts.length-1].x},${PAD_T + chartH} L${PAD_L},${PAD_T + chartH} Z`;
+
+                  // Label frequency based on data density
+                  const labelEvery = rows.length <= 30 ? 5 : rows.length <= 90 ? 10 : rows.length <= 180 ? 20 : 30;
+
+                  const formatDate = (d) => {
+                    const dt = new Date(d + "T00:00:00");
+                    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  };
+
                   return (
-                    <div>
-                      <svg width="100%" viewBox={`0 0 ${W} ${H + 20}`} style={{ overflow: "visible" }}>
+                    <div style={{ position: "relative" }}>
+                      {/* Hover tooltip */}
+                      {hovered && (
+                        <div style={{
+                          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+                          background: "var(--surface)", border: "1px solid var(--accent)", borderRadius: 8,
+                          padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 12, zIndex: 10,
+                          pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+                        }}>
+                          <div style={{ color: "var(--accent)", fontWeight: 700, marginBottom: 6 }}>{formatDate(hovered.date)}</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+                            <span style={{ color: "var(--muted)" }}>Clicks</span><span style={{ color: "#00ff88", fontWeight: 700 }}>{hovered.clicks.toLocaleString()}</span>
+                            <span style={{ color: "var(--muted)" }}>Impressions</span><span style={{ color: "var(--accent)" }}>{hovered.impressions.toLocaleString()}</span>
+                            {hovered.position != null && <><span style={{ color: "var(--muted)" }}>Avg Position</span><span style={{ color: "#f0a500" }}>#{hovered.position.toFixed(1)}</span></>}
+                            {hovered.ctr != null && <><span style={{ color: "var(--muted)" }}>CTR</span><span style={{ color: "var(--muted)" }}>{(hovered.ctr * 100).toFixed(2)}%</span></>}
+                          </div>
+                        </div>
+                      )}
+
+                      <svg width="100%" viewBox={`0 0 ${W} ${H + PAD_B}`} style={{ overflow: "visible", marginTop: hovered ? 80 : 0 }}>
                         <defs>
-                          <linearGradient id="gscGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
+                          <linearGradient id="gscGrad2" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.25" />
                             <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
                           </linearGradient>
                         </defs>
-                        <path d={areaD} fill="url(#gscGrad)" />
+
+                        {/* Y axis labels + grid lines */}
+                        {yLabels.map((v, i) => {
+                          const y = PAD_T + (1 - v / maxClicks) * chartH;
+                          return (
+                            <g key={i}>
+                              <line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke="var(--border)" strokeWidth="1" strokeDasharray="3,4" />
+                              <text x={PAD_L - 6} y={y + 4} textAnchor="end" fill="var(--muted)" fontSize="9">{v >= 1000 ? (v/1000).toFixed(0)+"k" : v}</text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Area + line */}
+                        <path d={areaD} fill="url(#gscGrad2)" />
                         <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
-                        {pts.filter((_, i) => i % 5 === 0).map((p, i) => (
-                          <g key={i}>
-                            <text x={p.x} y={H + 16} textAnchor="middle" fill="var(--muted)" fontSize="9">{p.date.slice(5)}</text>
-                          </g>
+
+                        {/* X axis date labels */}
+                        {pts.filter((_, i) => i % labelEvery === 0 || i === pts.length - 1).map((p, i) => (
+                          <text key={i} x={p.x} y={PAD_T + chartH + 18} textAnchor="middle" fill="var(--muted)" fontSize="9">{formatDate(p.date)}</text>
                         ))}
-                        {pts[pts.length - 1] && (
+
+                        {/* Y axis click value labels at peaks */}
+                        {pts.filter((p, i) => i === 0 || i === pts.length - 1 || (i > 0 && i < pts.length - 1 && p.clicks > pts[i-1].clicks && p.clicks > pts[i+1]?.clicks && p.clicks > maxClicks * 0.7)).map((p, i) => (
+                          <text key={i} x={p.x} y={p.y - 6} textAnchor="middle" fill="var(--accent)" fontSize="9" fontWeight="bold">{p.clicks >= 1000 ? (p.clicks/1000).toFixed(1)+"k" : p.clicks}</text>
+                        ))}
+
+                        {/* Invisible hover targets */}
+                        {pts.map((p, i) => (
+                          <rect key={i}
+                            x={p.x - (chartW / rows.length / 2)}
+                            y={PAD_T}
+                            width={chartW / rows.length}
+                            height={chartH}
+                            fill="transparent"
+                            onMouseEnter={() => setHovered(p)}
+                            onMouseLeave={() => setHovered(null)}
+                          />
+                        ))}
+
+                        {/* Hover dot */}
+                        {hovered && (
                           <g>
-                            <circle cx={pts[pts.length-1].x} cy={pts[pts.length-1].y} r="4" fill="var(--accent)" />
-                            <text x={pts[pts.length-1].x} y={pts[pts.length-1].y - 8} textAnchor="middle" fill="var(--accent)" fontSize="10" fontWeight="bold">{pts[pts.length-1].clicks}</text>
+                            <line x1={hovered.x} y1={PAD_T} x2={hovered.x} y2={PAD_T + chartH} stroke="var(--accent)" strokeWidth="1" strokeDasharray="3,3" strokeOpacity="0.6" />
+                            <circle cx={hovered.x} cy={hovered.y} r="5" fill="var(--accent)" stroke="var(--bg)" strokeWidth="2" />
                           </g>
                         )}
                       </svg>
-                      <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center" }}>Daily clicks — last 30 days</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", marginTop: 4 }}>
+                        Clicks per day · {gscData.dateRange?.startDate} → {gscData.dateRange?.endDate}
+                      </div>
                     </div>
                   );
                 })()}

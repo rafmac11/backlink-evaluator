@@ -121,11 +121,12 @@ export async function POST(req) {
           rowLimit: 25,
           orderBy: [{ fieldName: "clicks", sortOrder: "DESCENDING" }],
         }),
-        // Daily trend
+        // Daily trend with position
         gscQuery(token, siteUrl, {
           startDate, endDate,
           dimensions: ["date"],
           rowLimit: 500,
+          orderBy: [{ fieldName: "date", sortOrder: "ASCENDING" }],
         }),
         // Previous period totals
         gscQuery(token, siteUrl, {
@@ -191,6 +192,8 @@ export async function POST(req) {
           date: r.keys[0],
           clicks: r.clicks,
           impressions: r.impressions,
+          position: r.position,
+          ctr: r.ctr,
         })),
       });
     }
