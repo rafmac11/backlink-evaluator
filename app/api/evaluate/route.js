@@ -3,8 +3,10 @@ import Anthropic from "@anthropic-ai/sdk";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const SYSTEM_PROMPT = `You are an expert SEO analyst specializing in backlink quality evaluation. 
-You research domains thoroughly using web search and return structured JSON evaluations.
-You must ALWAYS respond with valid JSON only — no markdown, no explanation outside the JSON.`;
+You must ALWAYS respond with a single valid JSON object only.
+Do NOT include any text before or after the JSON.
+Do NOT use markdown code blocks.
+Your entire response must be parseable by JSON.parse().`;
 
 const buildPrompt = (sourceUrl, targetUrl) => `
 Evaluate the backlink relationship between:
@@ -109,14 +111,19 @@ export async function POST(req) {
       });
       const retryText = retry.content.filter((b) => b.type === "text").pop();
       if (!retryText) return Response.json({ error: "No response from Claude." }, { status: 500 });
-      const raw = retryText.text.replace(/```json|```/g, "").trim();
-      return Response.json(JSON.parse(raw));
+      const retryRaw = retryText.text.replace(/```json|```/g, "").trim();
+      const retryMatch = retryRaw.match(/\{[\s\S]*\}/);
+      if (!retryMatch) return Response.json({ error: "Could not parse Claude response as JSON." }, { status: 500 });
+      return Response.json(JSON.parse(retryMatch[0]));
     }
 
-    // Strip any accidental markdown fences
+    // Strip any accidental markdown fences and extract JSON
     const raw = textBlock.text.replace(/```json|```/g, "").trim();
-    const result = JSON.parse(raw);
-
+    
+    // Try to extract JSON object if there's surrounding text
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON found in response");
+    const result = JSON.parse(jsonMatch[0]);
     return Response.json(result);
   } catch (err) {
     console.error("Evaluation error:", err);
