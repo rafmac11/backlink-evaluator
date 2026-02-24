@@ -1452,25 +1452,26 @@ function Projects() {
 
                   return (
                     <div style={{ position: "relative" }}>
-                      {/* Hover tooltip */}
-                      {hovered && (
-                        <div style={{
-                          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
-                          background: "var(--surface)", border: "1px solid var(--accent)", borderRadius: 8,
-                          padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 12, zIndex: 10,
-                          pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-                        }}>
-                          <div style={{ color: "var(--accent)", fontWeight: 700, marginBottom: 6 }}>{formatDate(hovered.date)}</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
-                            <span style={{ color: "var(--muted)" }}>Clicks</span><span style={{ color: "#00ff88", fontWeight: 700 }}>{hovered.clicks.toLocaleString()}</span>
-                            <span style={{ color: "var(--muted)" }}>Impressions</span><span style={{ color: "var(--accent)" }}>{hovered.impressions.toLocaleString()}</span>
-                            {hovered.position != null && <><span style={{ color: "var(--muted)" }}>Avg Position</span><span style={{ color: "#f0a500" }}>#{hovered.position.toFixed(1)}</span></>}
-                            {hovered.ctr != null && <><span style={{ color: "var(--muted)" }}>CTR</span><span style={{ color: "var(--muted)" }}>{(hovered.ctr * 100).toFixed(2)}%</span></>}
+                      {/* Fixed height tooltip area - prevents layout jump */}
+                      <div style={{ height: 80, position: "relative", marginBottom: 4 }}>
+                        {hovered && (
+                          <div style={{
+                            position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)",
+                            background: "var(--surface)", border: "1px solid var(--accent)", borderRadius: 8,
+                            padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 12, zIndex: 10,
+                            pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+                          }}>
+                            <div style={{ color: "var(--accent)", fontWeight: 700, marginBottom: 6 }}>{formatDate(hovered.date)}</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+                              <span style={{ color: "var(--muted)" }}>Clicks</span><span style={{ color: "#00ff88", fontWeight: 700 }}>{hovered.clicks.toLocaleString()}</span>
+                              <span style={{ color: "var(--muted)" }}>Impressions</span><span style={{ color: "var(--accent)" }}>{hovered.impressions.toLocaleString()}</span>
+                              {hovered.position != null && <><span style={{ color: "var(--muted)" }}>Avg Position</span><span style={{ color: "#f0a500" }}>#{hovered.position.toFixed(1)}</span></>}
+                              {hovered.ctr != null && <><span style={{ color: "var(--muted)" }}>CTR</span><span style={{ color: "var(--muted)" }}>{(hovered.ctr * 100).toFixed(2)}%</span></>}
+                            </div>
                           </div>
-                        </div>
-                      )}
-
-                      <svg width="100%" viewBox={`0 0 ${W} ${H + PAD_B}`} style={{ overflow: "visible", marginTop: hovered ? 80 : 0 }}>
+                        )}
+                      </div>
+                      <svg width="100%" viewBox={`0 0 ${W} ${H + PAD_B}`} style={{ overflow: "visible" }}>
                         <defs>
                           <linearGradient id="gscGrad2" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.25" />
