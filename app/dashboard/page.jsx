@@ -945,6 +945,12 @@ function Projects() {
   const [gscView, setGscView] = useState("queries"); // queries | pages | trend
   const [gscDays, setGscDays] = useState(30);
   const [gscHovered, setGscHovered] = useState(null);
+  const [showReport, setShowReport] = useState(false);
+  const [reportEmail, setReportEmail] = useState("");
+  const [reportNotes, setReportNotes] = useState("");
+  const [reportDays, setReportDays] = useState(30);
+  const [reportSending, setReportSending] = useState(false);
+  const [reportMsg, setReportMsg] = useState(null);
 
   const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
   const input = { width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none", boxSizing: "border-box" };
@@ -1078,6 +1084,25 @@ function Projects() {
     });
     setGscStatus(s => ({ ...s, [projectId]: { connected: false } }));
     setGscData(null);
+  }
+
+  async function sendReport() {
+    setReportSending(true);
+    setReportMsg(null);
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "email", projectId: active.id, to: reportEmail, notes: reportNotes, dateRange: reportDays }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setReportMsg({ ok: true, text: `✓ Report sent to ${reportEmail}` });
+    } catch (e) {
+      setReportMsg({ ok: false, text: e.message });
+    } finally {
+      setReportSending(false);
+    }
   }
 
   async function runProject() {
@@ -1238,8 +1263,71 @@ function Projects() {
         <button style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)" }} onClick={() => setView("list")}>{"‹ Projects"}</button>
         <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, flex: 1 }}>{active.name}</div>
         <button style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)" }} onClick={() => { setEditing({ ...active }); setView("edit"); }}>EDIT</button>
+        <button style={{ ...btn("#1a3a1a"), border: "1px solid #3a6a3a", color: "#b8ff00" }} onClick={() => { setShowReport(true); setReportMsg(null); }}>📄 REPORT</button>
         <button style={{ ...btn("#ff4444") }} onClick={() => deleteProject(active.id)}>DELETE</button>
       </div>
+
+      {/* Report Modal */}
+      {showReport && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, padding: 32, width: "100%", maxWidth: 520 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 11, color: "var(--accent)", letterSpacing: 3 }}>GENERATE REPORT — {active.name}</div>
+              <button onClick={() => setShowReport(false)} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 18 }}>✕</button>
+            </div>
+
+            {/* Date range */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 8 }}>DATE RANGE</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[["30d", 30], ["60d", 60], ["90d", 90], ["6mo", 180], ["1yr", 365]].map(([label, d]) => (
+                  <button key={d} onClick={() => setReportDays(d)}
+                    style={{ padding: "6px 14px", background: reportDays === d ? "var(--accent)" : "transparent", color: reportDays === d ? "#000" : "var(--muted)", border: "1px solid " + (reportDays === d ? "var(--accent)" : "var(--border)"), borderRadius: 6, fontFamily: "var(--font-mono)", fontSize: 11, cursor: "pointer", fontWeight: reportDays === d ? 700 : 400 }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 8 }}>NOTES / COMMENTARY (optional)</div>
+              <textarea value={reportNotes} onChange={e => setReportNotes(e.target.value)} rows={4}
+                placeholder="Add context for your client — what improved, what to focus on next..."
+                style={{ width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+              <button onClick={() => {
+                const url = `/report?projectId=${active.id}&days=${reportDays}${reportNotes ? "&notes=" + encodeURIComponent(reportNotes) : ""}`;
+                window.open(url, "_blank");
+              }} style={{ ...btn(), flex: 1 }}>
+                ⬇ PREVIEW & DOWNLOAD PDF
+              </button>
+            </div>
+
+            {/* Email */}
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 8 }}>EMAIL REPORT</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input value={reportEmail} onChange={e => setReportEmail(e.target.value)}
+                  placeholder="client@email.com"
+                  style={{ flex: 1, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 12, outline: "none" }} />
+                <button onClick={sendReport} disabled={reportSending || !reportEmail}
+                  style={{ ...btn(), opacity: reportSending || !reportEmail ? 0.5 : 1, whiteSpace: "nowrap" }}>
+                  {reportSending ? "SENDING..." : "✉ SEND"}
+                </button>
+              </div>
+              {reportMsg && (
+                <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 6, background: reportMsg.ok ? "#0a2a0a" : "#2a0a0a", border: `1px solid ${reportMsg.ok ? "#1a5a1a" : "#5a1a1a"}`, color: reportMsg.ok ? "#00c853" : "#ff4444", fontSize: 12, fontFamily: "var(--font-mono)" }}>
+                  {reportMsg.text}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Project info */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
