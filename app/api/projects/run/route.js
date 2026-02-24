@@ -7,7 +7,7 @@ export async function POST(req) {
     const credentials = Buffer.from(`${login}:${password}`).toString("base64");
     const headers = { Authorization: `Basic ${credentials}`, "Content-Type": "application/json" };
 
-    const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const cleanDomain = domain.replace(/^https?:\/\//, "").split("/")[0].replace(/\/$/, "");
 
     // Fetch backlink summary for main domain
     const blRes = await fetch("https://api.dataforseo.com/v3/backlinks/summary/live", {
@@ -33,7 +33,7 @@ export async function POST(req) {
     let opportunities = [];
 
     if (competitor) {
-      const cleanComp = competitor.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const cleanComp = competitor.replace(/^https?:\/\//, "").split("/")[0].replace(/\/$/, "");
 
       const compRes = await fetch("https://api.dataforseo.com/v3/backlinks/summary/live", {
         method: "POST", headers,
