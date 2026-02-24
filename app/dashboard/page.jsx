@@ -1033,7 +1033,7 @@ function Projects() {
       if (pending.length > 0) {
         log(`Polling ${pending.length} tasks every 10s (up to 10 min)...`);
         const remaining = new Set(pending);
-        for (let i = 0; i < 60 && remaining.size > 0; i++) {
+        for (let i = 0; i < 90 && remaining.size > 0; i++) {
           await new Promise(r => setTimeout(r, 10000));
           await Promise.all([...remaining].map(async (kw) => {
             const { taskId, fullKw } = taskMap[kw];
