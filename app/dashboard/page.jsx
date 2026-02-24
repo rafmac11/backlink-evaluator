@@ -943,6 +943,7 @@ function Projects() {
   const [gscSiteUrl, setGscSiteUrl] = useState("");
   const [gscSites, setGscSites] = useState([]);
   const [gscView, setGscView] = useState("queries"); // queries | pages | trend
+  const [gscDays, setGscDays] = useState(30);
 
   const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
   const input = { width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none", boxSizing: "border-box" };
@@ -1029,13 +1030,13 @@ function Projects() {
     }
   }
 
-  async function fetchGscData(projectId, siteUrl) {
+  async function fetchGscData(projectId, siteUrl, days = 30) {
     if (!siteUrl) return;
     setGscLoading(true);
     try {
       const res = await fetch("/api/gsc", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "fetch", projectId, siteUrl }),
+        body: JSON.stringify({ action: "fetch", projectId, siteUrl, days }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -1307,55 +1308,70 @@ function Projects() {
                   <div style={{ fontSize: 11, color: "var(--muted)" }}>Connected {gscStatus[active.id]?.connectedAt ? new Date(gscStatus[active.id].connectedAt).toLocaleDateString() : ""}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  {/* Site selector */}
                   {gscSites.length === 0 && (
-                    <button onClick={() => loadGscSites(active.id)} style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)", fontSize: 11 }}>
-                      SELECT SITE
-                    </button>
+                    <button onClick={() => loadGscSites(active.id)} style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)", fontSize: 11 }}>SELECT SITE</button>
                   )}
                   {gscSites.length > 0 && (
-                    <select onChange={e => { saveGscSiteUrl(active.id, e.target.value); setGscSites([]); }}
+                    <select onChange={e => { if (e.target.value) { saveGscSiteUrl(active.id, e.target.value); setGscSites([]); }}}
                       style={{ background: "var(--bg)", border: "1px solid var(--accent)", borderRadius: 6, padding: "8px 12px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
                       <option value="">— select site —</option>
                       {gscSites.map(s => <option key={s.siteUrl} value={s.siteUrl}>{s.siteUrl}</option>)}
                     </select>
                   )}
                   {active.gscSiteUrl && (
-                    <button onClick={() => fetchGscData(active.id, active.gscSiteUrl)} style={{ ...btn(), fontSize: 11 }}>
+                    <button onClick={() => { fetchGscData(active.id, active.gscSiteUrl, gscDays); }} style={{ ...btn(), fontSize: 11 }}>
                       {gscLoading ? "LOADING..." : "↻ REFRESH"}
                     </button>
                   )}
-                  <button onClick={() => disconnectGsc(active.id)} style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)", fontSize: 11 }}>
-                    DISCONNECT
-                  </button>
+                  <button onClick={() => disconnectGsc(active.id)} style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)", fontSize: 11 }}>DISCONNECT</button>
                 </div>
               </div>
               {active.gscSiteUrl && <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", marginTop: 8 }}>{active.gscSiteUrl}</div>}
+
+              {/* Date range selector */}
+              {active.gscSiteUrl && (
+                <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, alignSelf: "center", marginRight: 4 }}>DATE RANGE</div>
+                  {[["30d", 30], ["90d", 90], ["6mo", 180], ["1yr", 365]].map(([label, d]) => (
+                    <button key={d} onClick={() => { setGscDays(d); fetchGscData(active.id, active.gscSiteUrl, d); }}
+                      style={{ padding: "5px 12px", background: gscDays === d ? "var(--accent)" : "transparent", color: gscDays === d ? "#000" : "var(--muted)", border: "1px solid " + (gscDays === d ? "var(--accent)" : "var(--border)"), borderRadius: 6, fontFamily: "var(--font-mono)", fontSize: 11, cursor: "pointer", fontWeight: gscDays === d ? 700 : 400 }}>
+                      {label}
+                    </button>
+                  ))}
+                  {gscData?.dateRange && (
+                    <span style={{ fontSize: 10, color: "var(--muted)", alignSelf: "center", marginLeft: 8 }}>
+                      {gscData.dateRange.startDate} → {gscData.dateRange.endDate}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* GSC Summary Cards */}
-            {gscData?.summary && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-                {[
-                  ["CLICKS (30d)", gscData.summary.recentClicks, gscData.summary.clicksDelta],
-                  ["IMPRESSIONS (30d)", gscData.summary.recentImpressions, gscData.summary.impressionsDelta],
-                  ["TOP QUERIES", gscData.queries?.length, null],
-                  ["TOP PAGES", gscData.pages?.length, null],
-                ].map(([label, val, delta]) => (
-                  <div key={label} style={{ background: "var(--bg)", borderRadius: 8, padding: "14px 16px", border: "1px solid var(--border)" }}>
-                    <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 8 }}>{label}</div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, color: "var(--accent)" }}>
-                      {val?.toLocaleString() ?? "—"}
+            {/* GSC Summary Cards — 4 metrics */}
+            {gscData?.summary && (() => {
+              const s = gscData.summary;
+              const pctChange = (curr, prev) => prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : null;
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+                  {[
+                    { label: "TOTAL CLICKS", val: s.clicks.toLocaleString(), delta: s.clicksDelta, pct: pctChange(s.clicks, s.prevClicks), color: "var(--accent)" },
+                    { label: "TOTAL IMPRESSIONS", val: s.impressions.toLocaleString(), delta: s.impressionsDelta, pct: pctChange(s.impressions, s.prevImpressions), color: "var(--accent)" },
+                    { label: "AVG POSITION", val: `#${s.avgPosition.toFixed(1)}`, delta: null, pct: null, color: s.avgPosition <= 3 ? "#00ff88" : s.avgPosition <= 10 ? "var(--accent)" : s.avgPosition <= 20 ? "#f0a500" : "#ff4444" },
+                    { label: "AVG CTR", val: `${(s.avgCtr * 100).toFixed(2)}%`, delta: null, pct: null, color: "var(--accent)" },
+                  ].map(({ label, val, delta, pct, color }) => (
+                    <div key={label} style={{ background: "var(--bg)", borderRadius: 8, padding: "14px 16px", border: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 8 }}>{label}</div>
+                      <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 800, color }}>{val}</div>
+                      {delta != null && pct != null && (
+                        <div style={{ fontSize: 11, color: delta >= 0 ? "#00ff88" : "#ff4444", marginTop: 6 }}>
+                          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toLocaleString()} ({delta >= 0 ? "+" : ""}{pct}%) vs prev
+                        </div>
+                      )}
                     </div>
-                    {delta != null && (
-                      <div style={{ fontSize: 11, color: delta >= 0 ? "#00ff88" : "#ff4444", marginTop: 4 }}>
-                        {delta >= 0 ? "+" : ""}{delta.toLocaleString()} vs prev 30d
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* GSC Data Table */}
             {gscData && (
