@@ -937,12 +937,37 @@ function Projects() {
   const [checks, setChecks] = useState({ rankings: true, backlinks: true, competitors: true });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [gscStatus, setGscStatus] = useState({}); // projectId -> { connected, connectedAt }
+  const [gscData, setGscData] = useState(null);
+  const [gscLoading, setGscLoading] = useState(false);
+  const [gscSiteUrl, setGscSiteUrl] = useState("");
+  const [gscSites, setGscSites] = useState([]);
+  const [gscView, setGscView] = useState("queries"); // queries | pages | trend
 
   const card = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 };
   const input = { width: "100%", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 13, outline: "none", boxSizing: "border-box" };
   const btn = (color = "var(--accent)") => ({ padding: "10px 20px", background: color, color: color === "var(--accent)" ? "#000" : "#fff", border: "none", borderRadius: 8, fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: 1 });
 
-  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => {
+    loadProjects();
+    // Handle GSC OAuth redirect
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const gsc = params.get("gsc");
+      const projectId = params.get("projectId");
+      if (gsc === "connected" && projectId) {
+        // Clear URL params
+        window.history.replaceState({}, "", "/dashboard");
+        // Load projects then open the connected project
+        fetch("/api/projects").then(r => r.json()).then(data => {
+          const projects = data.projects || [];
+          setProjects(projects);
+          const p = projects.find(p => p.id === projectId);
+          if (p) { setTab && null; openDetail(p); }
+        });
+      }
+    }
+  }, []);
 
   async function loadProjects() {
     try {
@@ -989,12 +1014,68 @@ function Projects() {
     setActive(p);
     setView("detail");
     setProgress([]);
-    const res = await fetch("/api/projects", {
+    setGscData(null);
+    const [runsRes, gscRes] = await Promise.all([
+      fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "getRuns", id: p.id }) }),
+      fetch("/api/gsc", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", projectId: p.id }) }),
+    ]);
+    const runsData = await runsRes.json();
+    const gscStatusData = await gscRes.json();
+    setRuns(runsData.runs || []);
+    setGscStatus(s => ({ ...s, [p.id]: gscStatusData }));
+    if (gscStatusData.connected && p.gscSiteUrl) {
+      setGscSiteUrl(p.gscSiteUrl);
+      fetchGscData(p.id, p.gscSiteUrl);
+    }
+  }
+
+  async function fetchGscData(projectId, siteUrl) {
+    if (!siteUrl) return;
+    setGscLoading(true);
+    try {
+      const res = await fetch("/api/gsc", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "fetch", projectId, siteUrl }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setGscData(data);
+    } catch (e) {
+      console.error("GSC fetch error:", e);
+    } finally {
+      setGscLoading(false);
+    }
+  }
+
+  async function loadGscSites(projectId) {
+    try {
+      const res = await fetch("/api/gsc", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sites", projectId }),
+      });
+      const data = await res.json();
+      setGscSites(data.sites || []);
+    } catch (e) { console.error(e); }
+  }
+
+  async function saveGscSiteUrl(projectId, siteUrl) {
+    const updated = { ...active, gscSiteUrl: siteUrl };
+    await fetch("/api/projects", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "getRuns", id: p.id }),
+      body: JSON.stringify({ action: "save", project: updated }),
     });
-    const data = await res.json();
-    setRuns(data.runs || []);
+    setActive(updated);
+    setGscSiteUrl(siteUrl);
+    fetchGscData(projectId, siteUrl);
+  }
+
+  async function disconnectGsc(projectId) {
+    await fetch("/api/gsc", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "disconnect", projectId }),
+    });
+    setGscStatus(s => ({ ...s, [projectId]: { connected: false } }));
+    setGscData(null);
   }
 
   async function runProject() {
@@ -1195,6 +1276,188 @@ function Projects() {
           {running && <div style={{ color: "var(--muted)", marginTop: 8, animation: "pulse 1s infinite" }}>{"..."}</div>}
         </div>
       )}
+
+      {/* GSC Panel */}
+      {(() => {
+        const connected = gscStatus[active.id]?.connected;
+        const appUrl = "https://backlink-evaluator-production.up.railway.app";
+
+        if (!connected) return (
+          <div style={card}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 4 }}>GOOGLE SEARCH CONSOLE</div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>Connect to see real clicks, impressions, CTR and average position</div>
+              </div>
+              <a href={`/api/auth/gsc?projectId=${active.id}`}
+                style={{ ...btn(), textDecoration: "none", display: "inline-block", whiteSpace: "nowrap" }}>
+                🔗 CONNECT GSC
+              </a>
+            </div>
+          </div>
+        );
+
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* GSC Header */}
+            <div style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "var(--accent)", letterSpacing: 3, marginBottom: 4 }}>GOOGLE SEARCH CONSOLE ✓</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>Connected {gscStatus[active.id]?.connectedAt ? new Date(gscStatus[active.id].connectedAt).toLocaleDateString() : ""}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  {/* Site selector */}
+                  {gscSites.length === 0 && (
+                    <button onClick={() => loadGscSites(active.id)} style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)", fontSize: 11 }}>
+                      SELECT SITE
+                    </button>
+                  )}
+                  {gscSites.length > 0 && (
+                    <select onChange={e => { saveGscSiteUrl(active.id, e.target.value); setGscSites([]); }}
+                      style={{ background: "var(--bg)", border: "1px solid var(--accent)", borderRadius: 6, padding: "8px 12px", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                      <option value="">— select site —</option>
+                      {gscSites.map(s => <option key={s.siteUrl} value={s.siteUrl}>{s.siteUrl}</option>)}
+                    </select>
+                  )}
+                  {active.gscSiteUrl && (
+                    <button onClick={() => fetchGscData(active.id, active.gscSiteUrl)} style={{ ...btn(), fontSize: 11 }}>
+                      {gscLoading ? "LOADING..." : "↻ REFRESH"}
+                    </button>
+                  )}
+                  <button onClick={() => disconnectGsc(active.id)} style={{ ...btn("transparent"), border: "1px solid var(--border)", color: "var(--muted)", fontSize: 11 }}>
+                    DISCONNECT
+                  </button>
+                </div>
+              </div>
+              {active.gscSiteUrl && <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", marginTop: 8 }}>{active.gscSiteUrl}</div>}
+            </div>
+
+            {/* GSC Summary Cards */}
+            {gscData?.summary && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+                {[
+                  ["CLICKS (30d)", gscData.summary.recentClicks, gscData.summary.clicksDelta],
+                  ["IMPRESSIONS (30d)", gscData.summary.recentImpressions, gscData.summary.impressionsDelta],
+                  ["TOP QUERIES", gscData.queries?.length, null],
+                  ["TOP PAGES", gscData.pages?.length, null],
+                ].map(([label, val, delta]) => (
+                  <div key={label} style={{ background: "var(--bg)", borderRadius: 8, padding: "14px 16px", border: "1px solid var(--border)" }}>
+                    <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: 2, marginBottom: 8 }}>{label}</div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, color: "var(--accent)" }}>
+                      {val?.toLocaleString() ?? "—"}
+                    </div>
+                    {delta != null && (
+                      <div style={{ fontSize: 11, color: delta >= 0 ? "#00ff88" : "#ff4444", marginTop: 4 }}>
+                        {delta >= 0 ? "+" : ""}{delta.toLocaleString()} vs prev 30d
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* GSC Data Table */}
+            {gscData && (
+              <div style={card}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                  {[["queries", "TOP QUERIES"], ["pages", "TOP PAGES"], ["trend", "DAILY TREND"]].map(([v, label]) => (
+                    <button key={v} onClick={() => setGscView(v)}
+                      style={{ padding: "6px 14px", background: gscView === v ? "var(--accent)" : "transparent", color: gscView === v ? "#000" : "var(--muted)", border: "1px solid " + (gscView === v ? "var(--accent)" : "var(--border)"), borderRadius: 6, fontFamily: "var(--font-mono)", fontSize: 11, cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {(gscView === "queries" || gscView === "pages") && (() => {
+                  const rows = gscView === "queries" ? gscData.queries : gscData.pages;
+                  const keyField = gscView === "queries" ? "query" : "page";
+                  return (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                        <thead>
+                          <tr>
+                            {[gscView === "queries" ? "KEYWORD" : "PAGE", "CLICKS", "IMPRESSIONS", "CTR", "AVG POS"].map(h => (
+                              <th key={h} style={{ textAlign: h === (gscView === "queries" ? "KEYWORD" : "PAGE") ? "left" : "center", padding: "8px 12px", color: "var(--muted)", fontWeight: 400, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(rows || []).map((r, i) => (
+                            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                              <td style={{ padding: "9px 12px", color: "var(--text)", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                                title={r[keyField]}>{r[keyField]}</td>
+                              <td style={{ textAlign: "center", padding: "9px 12px", color: "var(--accent)", fontWeight: 700 }}>{r.clicks.toLocaleString()}</td>
+                              <td style={{ textAlign: "center", padding: "9px 12px", color: "var(--muted)" }}>{r.impressions.toLocaleString()}</td>
+                              <td style={{ textAlign: "center", padding: "9px 12px", color: "var(--muted)" }}>{(r.ctr * 100).toFixed(1)}%</td>
+                              <td style={{ textAlign: "center", padding: "9px 12px", color: r.position <= 3 ? "#00ff88" : r.position <= 10 ? "var(--accent)" : r.position <= 20 ? "#f0a500" : "#ff4444", fontWeight: 700 }}>
+                                #{r.position.toFixed(1)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+
+                {gscView === "trend" && (() => {
+                  const rows = gscData.dailyTrend || [];
+                  if (rows.length < 2) return <div style={{ color: "var(--muted)", padding: 20 }}>No trend data available.</div>;
+                  const maxClicks = Math.max(...rows.map(r => r.clicks), 1);
+                  const W = 600, H = 120, PAD = 30;
+                  const pts = rows.map((r, i) => ({
+                    x: PAD + (i / (rows.length - 1)) * (W - PAD * 2),
+                    y: PAD + (1 - r.clicks / maxClicks) * (H - PAD),
+                    clicks: r.clicks, date: r.date,
+                  }));
+                  const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+                  const areaD = `${pathD} L${pts[pts.length-1].x},${H} L${pts[0].x},${H} Z`;
+                  return (
+                    <div>
+                      <svg width="100%" viewBox={`0 0 ${W} ${H + 20}`} style={{ overflow: "visible" }}>
+                        <defs>
+                          <linearGradient id="gscGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
+                            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        <path d={areaD} fill="url(#gscGrad)" />
+                        <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
+                        {pts.filter((_, i) => i % 5 === 0).map((p, i) => (
+                          <g key={i}>
+                            <text x={p.x} y={H + 16} textAnchor="middle" fill="var(--muted)" fontSize="9">{p.date.slice(5)}</text>
+                          </g>
+                        ))}
+                        {pts[pts.length - 1] && (
+                          <g>
+                            <circle cx={pts[pts.length-1].x} cy={pts[pts.length-1].y} r="4" fill="var(--accent)" />
+                            <text x={pts[pts.length-1].x} y={pts[pts.length-1].y - 8} textAnchor="middle" fill="var(--accent)" fontSize="10" fontWeight="bold">{pts[pts.length-1].clicks}</text>
+                          </g>
+                        )}
+                      </svg>
+                      <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center" }}>Daily clicks — last 30 days</div>
+                    </div>
+                  );
+                })()}
+
+                {gscLoading && <div style={{ color: "var(--muted)", padding: 20, textAlign: "center" }}>Loading Search Console data...</div>}
+              </div>
+            )}
+
+            {!gscData && !gscLoading && active.gscSiteUrl && (
+              <div style={{ ...card, color: "var(--muted)", textAlign: "center", padding: 32 }}>
+                Click ↻ REFRESH to load Search Console data
+              </div>
+            )}
+            {!active.gscSiteUrl && connected && (
+              <div style={{ ...card, color: "var(--muted)", textAlign: "center", padding: 32 }}>
+                Click SELECT SITE to choose which Search Console property to use
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Backlinks summary card */}
       {runs.length > 0 && runs[0].backlinks && (() => {
