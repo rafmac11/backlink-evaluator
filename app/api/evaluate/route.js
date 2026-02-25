@@ -2,33 +2,46 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const SYSTEM_PROMPT = `You are an expert SEO analyst specializing in backlink quality evaluation. 
+const SYSTEM_PROMPT = `You are an expert SEO analyst helping evaluate whether a backlink opportunity is worth pursuing.
+
+Your job: Evaluate whether the SOURCE domain is a high-quality site worth getting a link FROM.
+The TARGET is your client's site that will RECEIVE the link — do not penalize or judge the target.
+
+Focus your evaluation entirely on the SOURCE domain:
+- Is the source a real, legitimate website with real traffic and content?
+- Does the source have topical relevance to the target's industry?
+- Is the source free from spam, PBN, or link scheme signals?
+- Would a real user on the source site find a link to the target useful?
+
+CRITICAL GUIDELINES:
+- Multi-location businesses with shared branding across states/cities are NORMAL — not a PBN signal
+- Typo or unusual domain names alone are NOT toxic. If the site ranks well, treat it as legitimate
+- Shared email domains and templated content across locations = standard multi-location business practice
+- Small link profiles on local business sites are completely normal
+- REAL PBN signals: no real address/phone, no reviews, hidden whois, bulk-created sites, content exists ONLY to pass links
+- If a site ranks on page 1 in Google it has passed quality filters — weight this heavily
+- The TARGET is your client seeking links — evaluate it charitably, focus suspicion only on the SOURCE
+
 You must ALWAYS respond with a single valid JSON object only.
 Do NOT include any text before or after the JSON.
 Do NOT use markdown code blocks.
-Your entire response must be parseable by JSON.parse().
-
-CRITICAL EVALUATION GUIDELINES:
-- Multi-location businesses with shared branding (same company name across states/cities) are NORMAL and NOT a PBN signal. Examples: franchise networks, regional service businesses, law firms, medical practices.
-- Shared email domains, similar site structures, and templated content across locations are standard for legitimate multi-location businesses — do NOT flag these as PBN.
-- Typo or unusual domain names alone are NOT sufficient to flag toxicity. A site ranking well in Google with real traffic and real reviews is legitimate regardless of domain name quirks.
-- ACTUAL PBN signals are: no real business address, no real phone, no reviews anywhere, no social presence, hidden whois, sites created in bulk on same date, content that exists ONLY to pass links.
-- Weight ACTUAL RANKING and REAL WORLD PRESENCE heavily. If a site ranks on page 1 for competitive terms, it has passed Google's quality filters — treat it as legitimate.
-- A legitimate local business with 1-5 referring domains is normal. Do not penalize small businesses for having small link profiles.
-- Focus on whether the link makes LOGICAL SENSE for a real user — would a real person find this link useful?`;
+Your entire response must be parseable by JSON.parse().`;
 
 const buildPrompt = (sourceUrl, targetUrl) => `
-Evaluate the backlink relationship between:
-- SOURCE (linking site): ${sourceUrl}
-- TARGET (receiving the link): ${targetUrl}
+Evaluate this backlink opportunity:
+- SOURCE (the site that would GIVE the link): ${sourceUrl}
+- TARGET (your client's site that would RECEIVE the link): ${targetUrl}
 
-Research both domains thoroughly using web search. Investigate:
-1. Domain age, indexed pages, brand search presence, Knowledge Panel, social presence, Wayback Machine history, third-party mentions (Yelp, BBB, etc.)
-2. Niche/topical relationship between source and target, audience overlap, entity co-occurrence, link purpose logic
-3. Toxicity signals: PBN patterns, link schemes, doorway pages, guest post farming, spam indicators, public reputation
-4. Agentic/traffic utility: citation value, Knowledge Graph association benefit, entity node reinforcement, semantic clustering impact, conversion alignment
+Your task: Determine if the SOURCE is worth getting a link from for the TARGET.
+Judge the SOURCE critically. Treat the TARGET as your client — do not penalize it.
 
-Return ONLY this JSON structure (no markdown, no code blocks):
+Research the SOURCE domain thoroughly:
+1. Is it a real legitimate website? Real business, real content, real traffic, real social presence?
+2. Is it topically relevant to the target's industry? Would a link make sense to a real user?
+3. Are there any spam or manipulation signals on the SOURCE?
+4. Would this link provide real value — trust, authority, referral traffic?
+
+Return ONLY this JSON structure:
 
 {
   "source_url": "${sourceUrl}",
